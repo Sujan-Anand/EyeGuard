@@ -47,19 +47,18 @@ def home():
         "and then entertainment. While we stare at a screen we blink far less, "
         "lean in closer and skip breaks, and our eyes pay for it."
     )
-    c1, c2, c3 = st.columns(3)
-    with c1, st.container(border=True):
-        st.metric("Normal blink rate", "15-20 / min")
-        st.caption("Blinking keeps the eye surface moist and clear.")
-    with c2, st.container(border=True):
-        st.metric("Blink rate on a screen", "5-7 / min",
-                  delta="about 60% fewer blinks", delta_color="inverse",
-                  delta_arrow="down")
-        st.caption("Result: dry, tired, burning eyes and headaches.")
-    with c3, st.container(border=True):
-        st.metric("People with myopia by 2050", "about 1 in 2")
-        st.caption("Projection by Holden et al., Ophthalmology (2016). "
-                   "Long hours of close-up work are a known risk factor.")
+    # A horizontal container (not st.columns) so the cards wrap onto a new row
+    # on a narrow screen instead of cutting the numbers off with "...".
+    with st.container(horizontal=True):
+        st.metric("Normal blink rate", "15-20 / min", "keeps eyes moist",
+                  delta_arrow="off", border=True)
+        st.metric("Blink rate on a screen", "5-7 / min", "about 60% fewer blinks",
+                  delta_color="inverse", delta_arrow="down", border=True)
+        st.metric("People with myopia by 2050", "about 1 in 2", "projected",
+                  delta_color="off", delta_arrow="off", border=True)
+    st.caption("Fewer blinks mean dry, tired, burning eyes and headaches. "
+               "Myopia projection: Holden et al., Ophthalmology (2016); long "
+               "hours of close-up work are a known risk factor.")
 
     # ----------------------------------------------------------- how it works
     st.header("How EyeGuard works")
