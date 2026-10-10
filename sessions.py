@@ -11,6 +11,7 @@ import threading
 from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -21,6 +22,7 @@ LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 COLUMNS = ["timestamp", "face", "ear", "blinks_total", "blink_rate", "distance_cm",
            "looking_away", "brightness", "on_break", "strain_score", "alert"]
 NUMERIC = [c for c in COLUMNS if c not in ("timestamp", "alert")]
+MIN_HOUR_MINUTES = 2                 # Insights ignores hours of the day with less data
 
 # (days ago, start hour, minutes, blink_base, dist_base, light_base)
 # A made-up week for the Insights page: later sessions are darker and more tiring.
@@ -46,6 +48,8 @@ def clean(df):
                          + ", ".join(missing) + ")")
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    if df["timestamp"].dt.tz is not None:          # keep every session in local clock time
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None)
     for col in NUMERIC:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["timestamp", "strain_score", "blinks_total"])
@@ -146,6 +150,50 @@ def break_periods(df):
     block = (on != on.shift()).cumsum()            # new id each time on_break flips
     return [(t[rows.index[0]], t[rows.index[-1]])
             for _, rows in df[on].groupby(block[on])]
+
+
+# ----------------------------------------------------- across all sessions
+def session_table(found):
+    """One row per session, oldest first, with the summary numbers from
+    report.py. found is {name: DataFrame} as returned by all_sessions()."""
+    rows = []
+    for name, df in found.items():
+        summary, _ = report.summarise(df)
+        rows.append({"name": name, "start": df["timestamp"].iloc[0],
+                     "demo": is_demo(name), **summary})
+    return pd.DataFrame(rows).sort_values("start").reset_index(drop=True)
+
+
+def by_hour(found):
+    """Average blink rate and strain score for each hour of the day, using
+    every second where the camera could see a face. Hours with less than
+    MIN_HOUR_MINUTES of data are left out (too little to trust)."""
+    rows = pd.concat(found.values(), ignore_index=True)
+    rows = rows[rows["face"] == 1]
+    hours = rows.groupby(rows["timestamp"].dt.hour).agg(
+        blink_rate=("blink_rate", "mean"),
+        strain_score=("strain_score", "mean"),
+        minutes=("blink_rate", "size"))
+    hours["minutes"] = hours["minutes"] / 60       # one row per second
+    hours.index.name = "hour"
+    enough = hours["minutes"] >= MIN_HOUR_MINUTES
+    return hours[enough].dropna(subset=["blink_rate"]).reset_index()
+
+
+def strain_trend(table):
+    """Points the average strain score changes by from one session to the
+    next (slope of a straight-line fit). None with fewer than 2 sessions."""
+    if len(table) < 2:
+        return None
+    return float(np.polyfit(range(len(table)), table["avg_score"], 1)[0])
+
+
+def weighted_mean(table, column):
+    """Average of a session_table column where long sessions count for more."""
+    known = table.dropna(subset=[column])
+    if known.empty or known["minutes"].sum() == 0:
+        return float("nan")
+    return float((known[column] * known["minutes"]).sum() / known["minutes"].sum())
 
 
 @st.cache_data(show_spinner=False, max_entries=20)
