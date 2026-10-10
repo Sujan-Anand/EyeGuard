@@ -67,6 +67,8 @@ except Exception as err:
 
 # ------------------------------------------------------------------ KPI cards
 blink, close = s["avg_blink_rate"], s["too_close_pct"]
+if math.isnan(s["avg_distance"]):
+    close = float("nan")                 # no distance readings -> nothing to report
 if math.isnan(blink):
     blink_note, blink_colour = None, "off"
 elif blink >= 15:
@@ -128,7 +130,7 @@ with st.container(horizontal=True):
         file_name=name, mime="text/csv", icon=":material/download:")
     st.download_button(
         "Session report (PNG)", sessions.report_png(df),
-        file_name=name.replace(".csv", "_report.png"), mime="image/png",
+        file_name=os.path.splitext(name)[0] + "_report.png", mime="image/png",
         icon=":material/image:")
 
 with st.expander("View the data as a table"):

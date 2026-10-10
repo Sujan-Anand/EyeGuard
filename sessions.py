@@ -61,7 +61,8 @@ def read_session(source):
     try:
         df, _ = report.load(source)
     except Exception as err:
-        raise ValueError(f"could not read the CSV ({err})") from err
+        raise ValueError("this does not look like an EyeGuard session CSV "
+                         "(it should start with a 'timestamp' column)") from err
     return clean(df)
 
 
