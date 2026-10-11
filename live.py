@@ -1,0 +1,346 @@
+"""
+Live eye tracking for the website (Live Check page).
+
+Every measurement comes from eyeguard.py: the MediaPipe backend, the Eye
+Aspect Ratio, iris distance, head pose, strain score and all the thresholds.
+This file only remembers the session between frames. It follows the same
+steps as the loop in eyeguard.main(), but takes one frame at a time and has
+no window, keyboard or beep, so it can run on a web server.
+"""
+
+import os
+import shutil
+import tempfile
+import threading
+import time
+import urllib.request
+from collections import deque
+from datetime import datetime
+
+import cv2
+import numpy as np
+import pandas as pd
+
+import eyeguard as eg
+
+# The same values eyeguard.main() uses inside its loop.
+LOOK_AWAY_YAW = 0.25             # nose this far off-centre -> looking away
+CALIBRATION_FRAMES = 90          # frames used to learn your open-eye EAR
+DEFAULT_EAR_THRESHOLD = 0.21
+MIN_CLOSED_FRAMES = 2            # shorter than this is noise, not a blink
+WARMUP_SECONDS = 15              # blink rate needs this much data first
+BLINK_ALERT_AFTER = 30           # no "blink more" alert before this
+DEMO_BREAK_SECONDS = 60          # same as  py eyeguard.py --demo
+NORMAL_BREAK_SECONDS = 20 * 60
+
+# Website only.
+PAUSE_SECONDS = 3                # a gap this long means the video was stopped
+MAX_ROWS = 4 * 60 * 60           # keep at most 4 hours of per-second rows
+COLUMNS = ["timestamp", "face", "ear", "blinks_total", "blink_rate", "distance_cm",
+           "looking_away", "brightness", "on_break", "strain_score", "alert"]
+
+_download_lock = threading.Lock()
+
+
+def ensure_model():
+    """Downloads face_landmarker.task (about 4 MB) the first time it is needed
+    and keeps it for later runs. Returns the path of the file."""
+    with _download_lock:
+        folder = os.path.dirname(eg.MODEL_PATH)
+        if not os.path.exists(eg.MODEL_PATH) and not os.access(folder, os.W_OK):
+            # read-only app folder: keep the model in the temp folder instead
+            eg.MODEL_PATH = os.path.join(tempfile.gettempdir(),
+                                         os.path.basename(eg.MODEL_PATH))
+            folder = tempfile.gettempdir()
+        if not os.path.exists(eg.MODEL_PATH):
+            # download to a temporary name first so a half-finished file is never used
+            handle, part = tempfile.mkstemp(suffix=".task", dir=folder)
+            try:
+                with os.fdopen(handle, "wb") as out, \
+                        urllib.request.urlopen(eg.MODEL_URL, timeout=60) as web:
+                    shutil.copyfileobj(web, out)
+                os.replace(part, eg.MODEL_PATH)
+            finally:
+                if os.path.exists(part):
+                    os.remove(part)
+        return eg.MODEL_PATH
+
+
+def brightness_of(frame_bgr):
+    return float(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY).mean())
+
+
+class EyeTracker:
+    """Keeps one visitor's live session. Call process() with every webcam frame."""
+
+    def __init__(self, break_every_s=NORMAL_BREAK_SECONDS):
+        self.lock = threading.Lock()         # the video runs in its own thread
+        self.break_every_s = break_every_s
+        self.backend = None                  # MediaPipe, created on the first frame
+        self.pending = set()                 # button presses waiting for the next frame
+        self.rows = deque(maxlen=MAX_ROWS)   # one row per second, like the desktop CSV
+        self.state = None                    # latest numbers, for the page to show
+        self.error = ""                      # set if a frame could not be processed
+
+        self.focal_px = None                 # set from frame width, or by calibration
+        self.calib_ears = []                 # first frames -> personal EAR threshold
+        self.ear_threshold = DEFAULT_EAR_THRESHOLD
+        self.closed_frames, self.closed_since = 0, None
+        self.blink_times = deque()
+        self.blinks_total, self.drowsy_events = 0, 0
+        self.session_start = None            # set when the first frame arrives
+        self.last_break_end = None
+        self.on_break, self.break_look_start = False, None
+        self.last_seen = None
+        self.last_log = None                 # the clock second of the last saved row
+        self.dist, self.ear, self.looking_away = 0.0, 0.0, False
+
+    # ------------------------------------------------------------ buttons
+    def request(self, action):
+        """Called by the page buttons: "break", "calibrate" or "reset".
+        The action is applied when the next frame arrives."""
+        with self.lock:
+            self.pending.add(action)
+
+    def snapshot(self):
+        """A copy of the latest numbers (None before the first frame)."""
+        with self.lock:
+            return dict(self.state) if self.state else None
+
+    def is_running(self, now=None):
+        now = time.time() if now is None else now
+        with self.lock:
+            return self.last_seen is not None and now - self.last_seen < PAUSE_SECONDS
+
+    def dataframe(self):
+        """The session so far, in the same format as an eyeguard.py CSV."""
+        with self.lock:
+            return pd.DataFrame(list(self.rows), columns=COLUMNS)
+
+    # ------------------------------------------------------------- frames
+    def process(self, frame_bgr, now=None):
+        """One webcam frame in, the same frame out (mirrored) with the numbers,
+        alerts and break screen drawn on it."""
+        try:
+            frame = cv2.flip(frame_bgr, 1)                   # mirror, like the desktop app
+            if self.backend is None:
+                self.backend = eg.FaceMeshBackend()
+            pts = self.backend.process(frame)
+            with self.lock:
+                state = self.update(pts, brightness_of(frame), frame.shape[1], now)
+                self.error = ""
+            return draw_overlay(frame, pts, state)
+        except Exception as err:                             # never freeze the video
+            self.error = f"{type(err).__name__}: {err}"
+            return frame_bgr
+
+    def update(self, pts, brightness, frame_width, now=None):
+        """The per-frame logic of eyeguard.main(). pts is the 478 x 2 landmark
+        array from the backend, or None when no face is visible."""
+        now = time.time() if now is None else now
+        if self.session_start is None:
+            self.session_start = self.last_break_end = now
+        elif now - self.last_seen > PAUSE_SECONDS:
+            self._skip_pause(now - self.last_seen)           # video was stopped for a while
+        self.last_seen = now
+        if self.focal_px is None:
+            self.focal_px = frame_width * 0.9                # typical laptop webcam (~60 deg FOV)
+        alert = ""
+        face = pts is not None
+        roll = 0.0
+
+        if "reset" in self.pending:
+            self.blink_times.clear()
+            self.blinks_total = self.drowsy_events = 0
+            self.session_start = self.last_break_end = now
+        if "break" in self.pending:
+            self.on_break, self.break_look_start = True, None
+        if "calibrate" in self.pending and face:
+            self.focal_px = (eg.iris_width_px(pts) * eg.MIN_SAFE_DISTANCE_CM
+                             / eg.IRIS_DIAMETER_CM)
+        self.pending.clear()
+
+        if face:
+            self.ear = (eg.eye_aspect_ratio(pts, eg.LEFT_EYE)
+                        + eg.eye_aspect_ratio(pts, eg.RIGHT_EYE)) / 2
+            yaw, roll = eg.head_pose(pts)
+            self.looking_away = abs(yaw) > LOOK_AWAY_YAW
+            self.dist = eg.distance_cm(eg.iris_width_px(pts), self.focal_px)
+
+            # personal threshold: 75% of your normal open-eye EAR
+            if len(self.calib_ears) < CALIBRATION_FRAMES:
+                self.calib_ears.append(self.ear)
+                if len(self.calib_ears) == CALIBRATION_FRAMES:
+                    self.ear_threshold = float(
+                        np.clip(np.median(self.calib_ears) * 0.75, 0.15, 0.28))
+
+            # blink & drowsiness
+            if self.ear < self.ear_threshold:
+                self.closed_frames += 1
+                self.closed_since = self.closed_since or now
+                if now - self.closed_since > eg.DROWSY_SECONDS:
+                    alert = "You look drowsy - take a proper break!"
+            else:
+                closed_for = now - (self.closed_since or now)
+                if self.closed_frames >= MIN_CLOSED_FRAMES and closed_for < eg.DROWSY_SECONDS:
+                    self.blinks_total += 1
+                    self.blink_times.append(now)
+                elif self.closed_since and closed_for >= eg.DROWSY_SECONDS:
+                    self.drowsy_events += 1
+                self.closed_frames, self.closed_since = 0, None
+        else:
+            self.looking_away = True
+
+        while self.blink_times and now - self.blink_times[0] > 60:
+            self.blink_times.popleft()
+        elapsed = now - self.session_start
+        # blinks per minute over the last 60 s (needs ~15 s of data to be meaningful)
+        blink_rate = (len(self.blink_times) * 60 / min(60, elapsed)
+                      if elapsed >= WARMUP_SECONDS else 15.0)
+
+        # ---------------- 20-20-20 with verified break
+        since_break = now - self.last_break_end
+        if not self.on_break and since_break >= self.break_every_s:
+            self.on_break, self.break_look_start = True, None
+        if self.on_break:
+            if self.looking_away:
+                self.break_look_start = self.break_look_start or now
+                if now - self.break_look_start >= eg.BREAK_LOOK_AWAY_SECONDS:
+                    self.on_break, self.last_break_end = False, now
+                    since_break = 0.0
+            else:
+                self.break_look_start = None     # looked back at screen -> timer resets
+
+        # ---------------- alerts (only when not on break)
+        if not self.on_break and face:
+            if elapsed > BLINK_ALERT_AFTER and blink_rate < eg.LOW_BLINK_RATE:
+                alert = f"Blink more! Only {blink_rate:.0f}/min"
+            if 0 < self.dist < eg.MIN_SAFE_DISTANCE_CM:
+                alert = f"Too close! {self.dist:.0f} cm - move back"
+            if abs(roll) > eg.HEAD_TILT_DEG:
+                alert = "Straighten your head / posture"
+        if brightness < eg.DARK_BRIGHTNESS:
+            alert = "Room too dark - turn on a light"
+
+        score = eg.strain_score(blink_rate, self.dist if face else 0,
+                                min(since_break, self.break_every_s) / 60,
+                                self.drowsy_events, self.break_every_s / 60)
+
+        self.state = {
+            "face": face, "ear": self.ear, "ear_threshold": self.ear_threshold,
+            "blinks_total": self.blinks_total, "blink_rate": blink_rate,
+            "measuring": elapsed < WARMUP_SECONDS,
+            "distance_cm": self.dist if face else None,
+            "looking_away": self.looking_away, "brightness": brightness,
+            "on_break": self.on_break,
+            "looked_away_s": (now - self.break_look_start) if self.break_look_start else None,
+            "next_break_s": max(0.0, self.break_every_s - since_break),
+            "strain_score": score, "alert": alert, "elapsed": elapsed,
+        }
+
+        # ---------------- one row per second, same columns as the desktop CSV
+        if int(now) != self.last_log:
+            self.last_log = int(now)
+            self.rows.append([
+                datetime.fromtimestamp(now).isoformat(timespec="seconds"), int(face),
+                round(self.ear, 3), self.blinks_total, round(blink_rate, 1),
+                round(self.dist, 1) if face else None, int(self.looking_away),
+                round(brightness, 1), int(self.on_break), score, alert])
+        return self.state
+
+    def _skip_pause(self, gap):
+        """The video was stopped and started again: do not count the gap as
+        screen time, as a long blink or as time looking away."""
+        self.session_start += gap
+        self.last_break_end += gap
+        self.blink_times = deque(t + gap for t in self.blink_times)
+        self.closed_frames, self.closed_since = 0, None
+        self.break_look_start = None
+
+
+# ------------------------------------------------------------------ drawing
+def put_centred(img, text, y, color, scale=0.8, thick=2):
+    """eyeguard.put(), centred and shrunk to fit narrow (phone) frames."""
+    width = img.shape[1]
+    text_w = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)[0][0]
+    if text_w > width - 20:
+        scale *= (width - 20) / text_w
+        text_w = width - 20
+    eg.put(img, text, ((width - text_w) // 2, y), color, scale, thick)
+
+
+def draw_overlay(frame, pts, state):
+    """Draws the same panel, strain bar, break screen and alert banner as the
+    desktop app onto the frame."""
+    h, w = frame.shape[:2]
+    face, score = state["face"], state["strain_score"]
+    if face:
+        for idx in eg.LEFT_EYE + eg.RIGHT_EYE:
+            cv2.circle(frame, tuple(int(v) for v in pts[idx]), 1, (0, 255, 255), -1)
+
+    panel = frame.copy()
+    cv2.rectangle(panel, (0, 0), (300, 190), (30, 30, 30), -1)
+    frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
+    eg.put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
+    eg.put(frame, "Blinks/min: measuring..." if state["measuring"]
+           else f"Blinks/min: {state['blink_rate']:4.1f}",
+           (10, 60), eg.level_color(state["blink_rate"] >= eg.LOW_BLINK_RATE))
+    eg.put(frame, f"Total blinks: {state['blinks_total']}", (10, 85))
+    eg.put(frame, f"Distance: {state['distance_cm']:4.0f} cm" if face else "Distance: --",
+           (10, 110), eg.level_color(not face or state["distance_cm"] >= eg.MIN_SAFE_DISTANCE_CM))
+    eg.put(frame, f"Next break: {state['next_break_s'] / 60:4.1f} min", (10, 135))
+    eg.put(frame, f"Strain score: {score}/100", (10, 160), eg.level_color(score < 50))
+    eg.put(frame, f"EAR {state['ear']:.2f} (thr {state['ear_threshold']:.2f})",
+           (10, 182), (200, 200, 200), 0.5, 1)
+
+    bar_w = int((w - 20) * score / 100)
+    cv2.rectangle(frame, (10, h - 20), (w - 10, h - 8), (60, 60, 60), -1)
+    cv2.rectangle(frame, (10, h - 20), (10 + bar_w, h - 8), eg.level_color(score < 50), -1)
+
+    if state["on_break"]:
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, h), (120, 60, 0), -1)
+        frame = cv2.addWeighted(overlay, 0.45, frame, 0.55, 0)
+        looked = state["looked_away_s"]
+        put_centred(frame, "20-20-20 BREAK", h // 2 - 40, (255, 255, 255), 1.1, 3)
+        put_centred(frame, "Look at something 20 feet away", h // 2, (255, 255, 255))
+        if looked is None:
+            put_centred(frame, "Still looking at the screen - timer paused",
+                        h // 2 + 40, (80, 80, 255))
+        else:
+            put_centred(frame, f"Good! {eg.BREAK_LOOK_AWAY_SECONDS - looked:.0f} s left",
+                        h // 2 + 40, (80, 230, 80))
+    elif state["alert"]:
+        cv2.rectangle(frame, (0, h - 70), (w, h - 28), (0, 0, 200), -1)
+        put_centred(frame, state["alert"], h - 40, (255, 255, 255))
+    return frame
+
+
+# ----------------------------------------------------------- single photo
+def check_photo(image_bgr):
+    """Everything that can be measured from one photo (no blink rate, which
+    needs video). Returns (numbers dict, list of alerts, annotated image)."""
+    pts = eg.FaceMeshBackend().process(image_bgr)
+    brightness = brightness_of(image_bgr)
+    numbers = {"face": pts is not None, "brightness": brightness}
+    alerts = []
+    if brightness < eg.DARK_BRIGHTNESS:
+        alerts.append("Room too dark - turn on a light")
+    if pts is None:
+        return numbers, alerts, image_bgr
+
+    ear = (eg.eye_aspect_ratio(pts, eg.LEFT_EYE) + eg.eye_aspect_ratio(pts, eg.RIGHT_EYE)) / 2
+    yaw, roll = eg.head_pose(pts)
+    dist = eg.distance_cm(eg.iris_width_px(pts), image_bgr.shape[1] * 0.9)
+    numbers.update(ear=ear, distance_cm=dist, roll=roll,
+                   looking_away=abs(yaw) > LOOK_AWAY_YAW)
+    if 0 < dist < eg.MIN_SAFE_DISTANCE_CM:
+        alerts.append(f"Too close! {dist:.0f} cm - move back")
+    if abs(roll) > eg.HEAD_TILT_DEG:
+        alerts.append("Straighten your head / posture")
+
+    marked = image_bgr.copy()
+    dot = max(1, image_bgr.shape[1] // 400)
+    for idx in eg.LEFT_EYE + eg.RIGHT_EYE:
+        cv2.circle(marked, tuple(int(v) for v in pts[idx]), dot, (0, 255, 255), -1)
+    return numbers, alerts, marked
