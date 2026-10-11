@@ -109,6 +109,15 @@ class TipCardsTest(unittest.TestCase):
         blink, _ = self.tips_for(minutes=60, blink_base=8.0, dist_base=75.0)
         self.assertEqual(blink[0]["title"], "Blink more")
 
+    def test_a_session_with_no_face_is_not_called_great(self):
+        import numpy as np
+        raw = sample_data.make_session(minutes=5).assign(face=0, distance_cm=np.nan)
+        df = sessions.clean(raw)
+        s, tips = report.summarise(df)
+        self.assertTrue(tips[0].startswith("Great session"))          # what report.py says
+        cards = sessions.tip_cards(df, s, tips)
+        self.assertEqual([(c["title"], c["kind"]) for c in cards], [("No face seen", "info")])
+
     def test_a_great_session(self):
         df = sessions.clean(sample_data.make_session(minutes=10, blink_base=22.0, dist_base=75.0))
         s, tips = report.summarise(df)

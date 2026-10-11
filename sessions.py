@@ -231,6 +231,11 @@ TIP_STYLES = [
 def tip_cards(df, s, tips):
     """The tips from report.py as icon cards, most important first. Importance
     is how far the session was from healthy on that measure (0 to 1)."""
+    if not _known(s["avg_blink_rate"]):          # the camera never saw a face
+        return [dict(text="The camera did not see your face in this session, so there is "
+                          "nothing to judge. Check the camera is pointing at you and the "
+                          "room is not too dark.",
+                     title="No face seen", icon="videocam_off", kind="info", importance=1.0)]
     severity = {
         "Your blink rate": min(1.0, max(0.0, (15 - s["avg_blink_rate"]) / 15))
         if _known(s["avg_blink_rate"]) else 0.0,
