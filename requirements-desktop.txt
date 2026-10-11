@@ -3,3 +3,5 @@ mediapipe
 numpy
 pandas
 matplotlib
+# Windows pop-up notifications for "py eyeguard.py --background" (not needed on the website)
+winotify==1.1.0; sys_platform == "win32"

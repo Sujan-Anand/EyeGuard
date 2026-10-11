@@ -43,6 +43,7 @@ py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
 py eyeguard.py --test-sound # play each alert sound once and exit
 py eyeguard.py --profile "Sujan - glasses"   # use or create a saved profile
+py eyeguard.py --background # no video window: notifications and a small box (see below)
 ```
 
 Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off
@@ -50,6 +51,25 @@ Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset �
 Alerts and breaks play a sound, with at least 15 seconds between repeats of the same alert. Each sound is a tone followed by a Windows system sound, because some laptops do not play the plain tone. Sounds play in the background, so the video does not pause. If you hear nothing, run `py eyeguard.py --test-sound` and check the Windows volume and output device. On the website, Live Check has an optional **Sound alerts** switch that beeps in the browser. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
 
 **Calibrate once:** sit exactly 50 cm (about arm's length) from the webcam and press `c`. Distance readings are much more accurate after this.
+
+### Background mode
+
+```
+py eyeguard.py --background
+py eyeguard.py --background --profile "Sujan - glasses" --demo --mute
+py eyeguard.py --background --no-mini
+```
+
+Background mode keeps watching through the webcam but shows no video window, so you can get on with your work. It works together with `--profile`, `--demo` and `--mute`.
+
+- **Notifications.** Windows pop-up notifications replace the on-screen alerts: blink warning (below 7/min), strong blink alert (below 5/min), too close, drowsy, and the break. The same 15-second gap between repeats applies. The break still has to be a real one: `Break time: look away for 20 s`, then `Break paused at 12/20 s — look away to continue` if you look back, then `Break done ✓`.
+- **Sound.** The notifications themselves are silent. EyeGuard plays its usual beeps with them, and `--mute` switches the beeps off.
+- **Mini window.** A small box (about 220 × 120) stays on top of your other windows with blinks/min, distance, strain score, and the break progress or the time to the next break. Drag it anywhere. Press **Stop** to end the session. `--no-mini` hides the box.
+- **Nobody there.** If no face is seen for 2 minutes you get one `EyeGuard paused` notification, then nothing more. It continues by itself when you come back.
+- **Stopping.** Press Stop on the box, or Ctrl+C in the terminal. Either way the session CSV is saved, with the same columns as always.
+- **Light on the laptop.** It reads the camera at most 15 times a second.
+
+Calibrating needs the video window, so run once without `--background` and press `c` (with a profile, the calibration is saved for later). Notifications use the `winotify` package, which is Windows-only and is installed by `requirements-desktop.txt`. Without it, or if Windows notifications are switched off, the messages are printed in the terminal instead.
 
 ### Profiles
 
@@ -185,6 +205,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `app.py` | Website entry point and Home page. |
 | `pages/` | Live Check, My Profile, Session Dashboard, Insights and About pages. |
 | `profiles.py` | Profiles: what is saved, the terminal questions, and the lens formula. |
+| `background.py` | Background mode for the desktop app: the Windows notifications and the small always-on-top box. |
 | `live.py` | Keeps the live session between video frames for the Live Check page and draws the overlay. |
 | `sessions.py` | Finds, loads and checks session CSVs; combines sessions for Insights. |
 | `charts.py` | Plotly charts. |
@@ -200,7 +221,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 py -m unittest discover -s tests -v
 ```
 
-The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute), the two blink alert levels, profiles, and the glasses correction (lens formula, saved calibration, safe distance, glare warning).
+The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute), the two blink alert levels, profiles, the glasses correction (lens formula, saved calibration, safe distance, glare warning), and background mode (notifications, the break with a pause, the pause when nobody is there, the Stop button and Ctrl+C).
 
 ## Future scope
 

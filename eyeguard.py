@@ -18,6 +18,8 @@ Run:   python eyeguard.py            (normal: break every 20 min)
        python eyeguard.py --mute     (start with the sound off)
        python eyeguard.py --test-sound   (play each alert sound once, then exit)
        python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)
+       python eyeguard.py --background   (no video window: pop-up notifications and a
+                                          small always-on-top box; add --no-mini to hide the box)
 Keys:  q = quit   c = calibrate distance (sit 50 cm away first)
        b = start a break now   r = reset session counters   m = sound on/off
 """
@@ -26,6 +28,7 @@ import argparse
 import csv
 import math
 import os
+import signal
 import sys
 import threading
 import time
@@ -402,6 +405,11 @@ def main():
     ap.add_argument("--profile", metavar="NAME",
                     help='use a saved profile, or create it with three questions, '
                          'e.g. --profile "Sujan - glasses"')
+    ap.add_argument("--background", action="store_true",
+                    help="no video window: Windows notifications and a small "
+                         "always-on-top box with a Stop button")
+    ap.add_argument("--no-mini", action="store_true",
+                    help="with --background: do not show the small box (stop with Ctrl+C)")
     args = ap.parse_args()
     break_every_s = 60 if args.demo else 20 * 60
     for stream in (sys.stdout, sys.stderr):      # a name the terminal cannot show
@@ -443,6 +451,18 @@ def main():
         return
     backend = FaceMeshBackend()
 
+    notifier = mini = None              # only used in background mode
+    if args.background:
+        import background as bg         # loaded here so the normal mode never needs it
+        notifier = bg.Notifier()
+        if not args.no_mini:
+            try:
+                mini = bg.MiniWindow()
+            except Exception as err:    # no desktop to draw on: carry on without the box
+                print(f"Mini window not shown ({err}). Stop with Ctrl+C.")
+    elif args.no_mini:
+        print("--no-mini only does something together with --background.")
+
     os.makedirs("logs", exist_ok=True)
     log_path = os.path.join("logs", datetime.now().strftime("session_%Y%m%d_%H%M%S.csv"))
     log_file = open(log_path, "w", newline="")
@@ -473,9 +493,18 @@ def main():
     if profiles.high_power_note(profile):               # once per session, first 10 seconds
         notices.append((profiles.high_power_note(profile), session_start + 10))
 
+    no_face_since = None                # background mode: when the face was last lost
+    away_paused = False                 # background mode: nobody in view for 2+ minutes
+    stop = {"asked": False}             # set by Ctrl+C so the session is saved properly
+
     def sound(kind="alert"):
-        if sound_on:
+        if sound_on and not away_paused:
             beep(*SOUNDS[kind])
+
+    def notify(message, title=None):
+        """Background mode: a pop-up notification (silent, the beep is separate)."""
+        if notifier and not away_paused:
+            notifier.show(message, *([title] if title else []))
 
     def alert(key, msg, level="alert"):
         nonlocal current_alert, alert_level
@@ -484,9 +513,27 @@ def main():
         if now - last_alert.get(key, 0) > ALERT_COOLDOWN:
             last_alert[key] = now
             sound()
+            notify(msg)
 
-    print(f"EyeGuard running. Logging to {log_path}. Press q to quit.")
+    def on_ctrl_c(*_):
+        stop["asked"] = True
+
+    try:
+        old_ctrl_c = signal.signal(signal.SIGINT, on_ctrl_c)
+    except ValueError:                  # not the main thread: Ctrl+C keeps its usual meaning
+        old_ctrl_c = None
+
+    if args.background:
+        print(f"EyeGuard running in the background. Logging to {log_path}.")
+        print("Stop with the Stop button on the small EyeGuard box, or Ctrl+C here."
+              if mini else "Stop with Ctrl+C in this window.")
+        if not profiles.is_calibrated(profile):
+            print("Tip: to calibrate the distance, run once without --background and press c.")
+    else:
+        print(f"EyeGuard running. Logging to {log_path}. Press q to quit.")
     while True:
+        if stop["asked"] or (mini and mini.stopped):
+            break
         ok, frame = cap.read()
         if not ok:
             break
@@ -501,6 +548,18 @@ def main():
         brightness = float(gray.mean())
         pts = backend.process(frame)
         face = pts is not None
+
+        if notifier:                      # background mode: pause while nobody is there
+            if face:
+                no_face_since = None
+                if away_paused:
+                    away_paused = False
+                    print("Face seen again: EyeGuard continues.")
+            else:
+                no_face_since = no_face_since or now
+                if not away_paused and now - no_face_since >= bg.NO_FACE_PAUSE_SECONDS:
+                    notify(bg.PAUSED_MESSAGE, bg.PAUSED_TITLE)     # one message, then quiet
+                    away_paused = True
 
         if face:
             ear = (eye_aspect_ratio(pts, LEFT_EYE) + eye_aspect_ratio(pts, RIGHT_EYE)) / 2
@@ -551,13 +610,19 @@ def main():
             on_break = True
             break_timer.reset()
             sound()
+            if notifier:
+                notify(bg.break_start_message(break_timer.seconds))
         if on_break:
             event = break_timer.update(looking_away, now)
             if event == "paused":         # looked back at the screen: one short beep
                 sound("pause")
+                if notifier:
+                    notify(bg.break_paused_message(break_timer.done, break_timer.seconds))
             elif event == "done":
                 on_break, last_break_end = False, now
                 sound("done")
+                if notifier:
+                    notify(bg.BREAK_DONE)
 
         # ---------------- alerts (only when not on break)
         if not on_break and face:
@@ -623,7 +688,13 @@ def main():
             else:                         # a long message is shrunk to fit
                 put_centred(frame, current_alert, h - 40, (255, 255, 255))
 
-        cv2.imshow("EyeGuard - Eye Strain Monitor", frame)
+        if not args.background:
+            cv2.imshow("EyeGuard - Eye Strain Monitor", frame)
+        elif mini:
+            mini.update(bg.mini_lines(
+                blink_rate, elapsed < 15, dist, face, score, on_break, break_timer.done,
+                break_timer.seconds, break_every_s - since_break, safe_cm,
+                BLINK_WARN_RATE, BLINK_ALERT_RATE, away_paused))
 
         # ---------------- log once per second
         if now - last_log >= 1:
@@ -634,6 +705,11 @@ def main():
                           round(brightness, 1), int(on_break), score, current_alert])
             log_file.flush()
 
+        if args.background:               # no window, so no keys; and no need to hurry
+            spare = 1 / bg.MAX_FPS - (time.time() - now)
+            if spare > 0:
+                time.sleep(spare)
+            continue
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
@@ -660,8 +736,13 @@ def main():
             sound_on = not sound_on
             print(f"Sound {'on' if sound_on else 'off'}")
 
+    if old_ctrl_c is not None:
+        signal.signal(signal.SIGINT, old_ctrl_c)
     cap.release()
-    cv2.destroyAllWindows()
+    if mini:
+        mini.close()
+    if not args.background:
+        cv2.destroyAllWindows()
     log_file.close()
     print(f"Session saved to {log_path}. Run: python report.py")
 

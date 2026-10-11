@@ -132,6 +132,21 @@ st.table({
     ],
 })
 
+st.subheader("5. Background mode (desktop app)")
+st.write(
+    "`py eyeguard.py --background` runs the same checks with no video window, so "
+    "EyeGuard can stay on while you study. Alerts arrive as Windows notifications "
+    f"(blink warning below {eg.BLINK_WARN_RATE}/min, strong alert below "
+    f"{eg.BLINK_ALERT_RATE}/min, too close, drowsy, break time) with the same "
+    f"{eg.ALERT_COOLDOWN}-second gap between repeats. The break is still verified: "
+    "looking back pauses it and you are told how far you got. A small box that "
+    "stays on top shows blinks per minute, distance, strain score and the break "
+    "timer, and has a Stop button.")
+st.caption("If nobody is in view for 2 minutes it sends one \"EyeGuard paused\" "
+           "notification and continues by itself when you return. It reads the camera "
+           "at most 15 times a second, and the session CSV is the same as in the "
+           "normal mode. It works with `--profile`, `--demo` and `--mute`.")
+
 st.subheader("Known limits")
 st.markdown(
     "- Distance is an estimate. It is most accurate after calibrating and when you "

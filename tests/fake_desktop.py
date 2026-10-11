@@ -14,6 +14,7 @@ import glob
 import io
 import os
 import shutil
+import signal
 import sys
 import tempfile
 
@@ -24,6 +25,7 @@ import numpy as np
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT not in sys.path:
     sys.path.insert(0, PROJECT)
+import background  # noqa: E402
 import eyeguard  # noqa: E402
 
 WIDTH, HEIGHT = 640, 480
@@ -67,8 +69,17 @@ CLOSED = _closed(FACE)                # the same, eyes shut
 AWAY = np.full((HEIGHT, WIDTH, 3), 128, np.uint8)      # nobody in view
 
 
-def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=()):
+def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(),
+                stop_at=None, ctrl_c_at=None, mini_fails=False):
     """Runs eyeguard.main() for `frames` frames and returns what happened:
+
+    Background mode (--background) gets a pretend notifier and mini window:
+    stop_at presses the Stop button at that frame, ctrl_c_at presses Ctrl+C,
+    and mini_fails makes the mini window impossible to open.
+    toasts   list of (frame number, title, message)
+    mini     for each frame the mini window was updated, its four (text, level) lines
+    shown    how many frames went to a video window
+    sleeps   the pauses asked for between frames (the frame-rate limit)
 
     beeps    list of (frame number, "short" or "long")
     texts    for each frame, the set of text lines drawn on the video
@@ -79,6 +90,7 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
     keys = keys or {}
     state = {"frame": -1, "t": 1_800_000_000.0}
     beeps, texts, banners = [], [], []
+    toasts, mini, sleeps, shown, closed = [], [], [], [], []
 
     class FakeCamera:
         def __init__(self, index):
@@ -94,6 +106,8 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
             banners.append(None)
             if state["frame"] >= frames:
                 return False, None
+            if state["frame"] == ctrl_c_at:
+                signal.raise_signal(signal.SIGINT)
             image = frame_for(state["frame"]) if frame_for else FACE
             return True, cv2.flip(image, 1)        # main() mirrors it back
 
@@ -104,6 +118,29 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
         @staticmethod
         def time():
             return state["t"]
+
+        @staticmethod
+        def sleep(seconds):
+            sleeps.append(seconds)
+
+    class FakeNotifier:
+        def show(self, message, title=background.APP_NAME):
+            toasts.append((state["frame"], title, message))
+            print(f"[{title}] {message}")
+
+    class FakeMini:
+        def __init__(self):
+            if mini_fails:
+                raise RuntimeError("no display")
+            self.stopped = False
+
+        def update(self, lines):
+            mini.append((state["frame"], lines))
+            if state["frame"] == stop_at:
+                self.stopped = True
+
+        def close(self):
+            closed.append(state["frame"])
 
     def fake_beep(freq=1000, ms=300, *args, **kwargs):
         beeps.append((state["frame"], "short" if ms < 300 else "long"))
@@ -121,12 +158,14 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
 
     saved = (cv2.VideoCapture, cv2.imshow, cv2.waitKey, cv2.destroyAllWindows,
              cv2.rectangle, eyeguard.beep, eyeguard.put, eyeguard.time,
-             sys.argv, sys.stdout, sys.stdin, os.getcwd())
+             sys.argv, sys.stdout, sys.stdin, os.getcwd(),
+             background.Notifier, background.MiniWindow)
     work = tempfile.mkdtemp(prefix="eyeguard_test_")
     out = io.StringIO()
     try:
         cv2.VideoCapture = FakeCamera
-        cv2.imshow = lambda *a, **k: None
+        cv2.imshow = lambda *a, **k: shown.append(state["frame"])
+        background.Notifier, background.MiniWindow = FakeNotifier, FakeMini
         cv2.waitKey = lambda *a, **k: ord(keys[state["frame"]]) if state["frame"] in keys else -1
         cv2.destroyAllWindows = lambda *a, **k: None
         cv2.rectangle = spy_rectangle
@@ -140,6 +179,7 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
          cv2.rectangle, eyeguard.beep, eyeguard.put, eyeguard.time,
          sys.argv, sys.stdout, sys.stdin) = saved[:11]
         os.chdir(saved[11])
+        background.Notifier, background.MiniWindow = saved[12:14]
 
     header, rows = [], []
     for path in glob.glob(os.path.join(work, "logs", "session_*.csv")):
@@ -151,7 +191,9 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
                    if os.path.isfile(p))
     shutil.rmtree(work, ignore_errors=True)
     return {"beeps": beeps, "texts": texts[:frames], "banners": banners[:frames],
-            "header": header, "rows": rows, "printed": out.getvalue(), "files": files}
+            "header": header, "rows": rows, "printed": out.getvalue(), "files": files,
+            "toasts": toasts, "mini": mini, "shown": len(shown), "sleeps": sleeps,
+            "mini_closed": len(closed), "frames_read": state["frame"] + 1}
 
 
 def all_text(result):
