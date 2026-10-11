@@ -68,8 +68,9 @@ st.write(
     "further away than you are and miss \"Too close\". A plus lens does the "
     "opposite. Contact lenses sit on the eye and change almost nothing. Blink "
     "detection is a ratio, so it is not affected.")
-st.latex(r"m = \frac{1}{1 - d \times P} \qquad distance = raw\ distance \times m")
+st.latex(r"m = \frac{1}{1 - d \times P}")
 st.write(
+    "The raw distance is multiplied by *m* to get the corrected distance. "
     f"*P* is the lens power in dioptres and *d* is the lens-to-eye distance, about "
     f"{profiles.LENS_DISTANCE_M * 1000:.0f} mm. At -7.00 D, m is about "
     f"{profiles.lens_magnification('glasses', -7):.3f}: the eye looks about 10% smaller. "
