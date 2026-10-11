@@ -28,6 +28,8 @@ The first line is enough for the desktop app. The second line adds what the webs
 
 Do **not** install `requirements.txt` on your laptop. That file is for Streamlit Community Cloud and uses `opencv-python-headless`, which cannot open the desktop app's video window.
 
+If `py -m streamlit run app.py` says `No module named streamlit`, the second line above has not been run for the Python that `py` starts.
+
 The first run downloads a small face model (`face_landmarker.task`, about 4 MB), so be online once.
 
 ## Run the desktop app
@@ -36,9 +38,12 @@ The first run downloads a small face model (`face_landmarker.task`, about 4 MB),
 py eyeguard.py --demo       # break every 60 s (use this in front of judges)
 py eyeguard.py              # normal: break every 20 min
 py eyeguard.py --camera 1   # if the wrong camera opens
+py eyeguard.py --mute       # start with the sound off
 ```
 
-Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset
+Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off
+
+Alerts and breaks beep, with at least 15 seconds between repeats of the same alert. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
 
 **Calibrate once:** sit exactly 50 cm (about arm's length) from the webcam and press `c`. Distance readings are much more accurate after this.
 
@@ -74,12 +79,12 @@ It opens at http://localhost:8501.
    - Repository: `<your-username>/EyeGuard`
    - Branch: `main`
    - Main file path: `app.py`
-5. Open **Advanced settings** and set the Python version to **3.12**. (3.11 also works, but pip then installs older versions of numpy and av, because their newest releases need 3.12.)
+5. Open **Advanced settings** and set the Python version to **3.12**. This is required: `requirements.txt` pins exact versions, and the pinned numpy does not install on 3.11.
 6. Click **Deploy**. The first build takes several minutes because MediaPipe and OpenCV are large.
 
 Streamlit Cloud reads three files from the repository:
 
-- `requirements.txt`: the Python packages.
+- `requirements.txt`: the Python packages, pinned to the exact versions the website was built and tested with.
 - `packages.txt`: two system libraries that OpenCV needs on Linux.
 - `.streamlit/config.toml`: the colour theme.
 
@@ -133,6 +138,8 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `charts.py` | Plotly charts. |
 | `requirements.txt`, `packages.txt` | For Streamlit Cloud. |
 | `requirements-desktop.txt` | For your laptop. |
+
+`logs/` (your recorded sessions) and `profiles.json` (your saved settings) stay on your laptop. Git ignores both, so they are never uploaded to GitHub.
 
 ## Future scope
 

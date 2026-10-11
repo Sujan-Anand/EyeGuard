@@ -12,8 +12,9 @@ Uses your webcam + MediaPipe Face Mesh to track:
 
 Run:   python eyeguard.py            (normal: break every 20 min)
        python eyeguard.py --demo     (break every 60 s - for the judges' demo)
+       python eyeguard.py --mute     (start with the sound off)
 Keys:  q = quit   c = calibrate distance (sit 50 cm away first)
-       b = start a break now   r = reset session counters
+       b = start a break now   r = reset session counters   m = sound on/off
 """
 
 import argparse
@@ -166,6 +167,7 @@ def main():
     ap = argparse.ArgumentParser(description="EyeGuard eye strain monitor")
     ap.add_argument("--demo", action="store_true", help="break every 60 s instead of 20 min")
     ap.add_argument("--camera", type=int, default=CAMERA_INDEX)
+    ap.add_argument("--mute", action="store_true", help="start with the sound off (m toggles it)")
     args = ap.parse_args()
     break_every_s = 60 if args.demo else 20 * 60
 
@@ -199,6 +201,11 @@ def main():
     dist = 0.0
     ear = 0.0
     looking_away = False
+    sound_on = not args.mute            # m key toggles this
+
+    def sound():
+        if sound_on:
+            beep()
 
     def alert(key, msg):
         nonlocal current_alert
@@ -206,7 +213,7 @@ def main():
         now = time.time()
         if now - last_alert.get(key, 0) > ALERT_COOLDOWN:
             last_alert[key] = now
-            beep()
+            sound()
 
     print(f"EyeGuard running. Logging to {log_path}. Press q to quit.")
     while True:
@@ -267,13 +274,13 @@ def main():
         since_break = now - last_break_end
         if not on_break and since_break >= break_every_s:
             on_break, break_look_start = True, None
-            beep()
+            sound()
         if on_break:
             if looking_away:
                 break_look_start = break_look_start or now
                 if now - break_look_start >= BREAK_LOOK_AWAY_SECONDS:
                     on_break, last_break_end = False, now
-                    beep()
+                    sound()
             else:
                 break_look_start = None   # looked back at screen -> timer resets
 
@@ -294,7 +301,7 @@ def main():
 
         # ---------------- HUD
         panel = frame.copy()
-        cv2.rectangle(panel, (0, 0), (300, 215), (30, 30, 30), -1)
+        cv2.rectangle(panel, (0, 0), (300, 235), (30, 30, 30), -1)
         frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
         put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
         put(frame, f"Blinks/min: {blink_rate:4.1f}" if elapsed >= 15 else "Blinks/min: measuring...",
@@ -307,6 +314,7 @@ def main():
         put(frame, f"Strain score: {score}/100", (10, 160), level_color(score < 50))
         put(frame, f"EAR {ear:.2f} (thr {ear_threshold:.2f})", (10, 185), (200, 200, 200), 0.5, 1)
         put(frame, "q quit | c calibrate | b break | r reset", (10, 207), (200, 200, 200), 0.45, 1)
+        put(frame, f"m sound {'ON' if sound_on else 'OFF'}", (10, 227), (200, 200, 200), 0.45, 1)
 
         bar_w = int((w - 20) * score / 100)
         cv2.rectangle(frame, (10, h - 20), (w - 10, h - 8), (60, 60, 60), -1)
@@ -350,6 +358,9 @@ def main():
             blink_times.clear()
             blinks_total = drowsy_events = 0
             session_start = last_break_end = now
+        if key == ord("m"):
+            sound_on = not sound_on
+            print(f"Sound {'on' if sound_on else 'off'}")
 
     cap.release()
     cv2.destroyAllWindows()

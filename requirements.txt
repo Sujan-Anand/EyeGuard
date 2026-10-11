@@ -1,9 +1,12 @@
-streamlit
-streamlit-webrtc
-av
-opencv-python-headless
-mediapipe
-plotly
-pandas
-numpy
-matplotlib
+# For Streamlit Community Cloud (Python 3.12). Do not install this on a laptop:
+# use requirements-desktop.txt there (see README.md).
+# Pinned on 2026-10-11 to the versions the website was built and tested with.
+streamlit==1.65.0
+streamlit-webrtc==0.78.1
+av==17.1.0
+opencv-python-headless==5.0.0.93
+mediapipe==1.1.0
+plotly==7.1.0
+pandas==3.0.6
+numpy==2.5.3
+matplotlib==3.11.2
