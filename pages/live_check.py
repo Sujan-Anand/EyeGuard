@@ -18,8 +18,8 @@ import sessions
 STUN_SERVERS = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]
 # Optional: on networks that block direct video (some campus Wi-Fi) a TURN relay
 # is needed. If one of these keys is set in the app's secrets, streamlit-webrtc
-# fetches STUN + TURN servers from that provider by itself.
-TURN_SECRET_KEYS = ("CLOUDFLARE_TURN_KEY_ID", "TWILIO_ACCOUNT_SID", "HF_TOKEN")
+# fetches STUN + TURN servers from that provider by itself (see README.md).
+TURN_SECRET_KEYS = ("HF_TOKEN", "CLOUDFLARE_TURN_KEY_ID")
 SLOW_CONNECT_SECONDS = 15
 MIN_ROWS_TO_SAVE = 5
 
