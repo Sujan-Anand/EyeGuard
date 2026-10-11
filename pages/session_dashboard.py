@@ -45,8 +45,8 @@ if not found:
     pick_col.info(
         "**No sessions yet.** You can:\n"
         "- click **Generate demo session** to see an example,\n"
-        "- upload a CSV saved by the desktop app, or\n"
-        "- record one with `py eyeguard.py --demo` and come back.",
+        "- run a **Live Check** and open it here when you stop the video, or\n"
+        "- upload a CSV saved by the desktop app (`py eyeguard.py --demo`).",
         icon=":material/info:")
     st.stop()
 

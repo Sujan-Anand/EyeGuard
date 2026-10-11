@@ -42,8 +42,8 @@ if not found:
     st.info(
         "**No sessions yet.** You can:\n"
         "- click **Generate demo week** to see an example of this page,\n"
-        "- upload a CSV on the Session Dashboard page, or\n"
-        "- record sessions with `py eyeguard.py` and come back.",
+        "- run a **Live Check** and open it in the Session Dashboard, or\n"
+        "- upload CSVs saved by the desktop app on the Session Dashboard page.",
         icon=":material/info:")
     st.stop()
 
