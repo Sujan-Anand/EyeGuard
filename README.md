@@ -41,6 +41,7 @@ py eyeguard.py --demo       # break every 60 s (use this in front of judges)
 py eyeguard.py              # normal: break every 20 min
 py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
+py eyeguard.py --profile "Sujan - glasses"   # use or create a saved profile
 ```
 
 Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off
@@ -48,6 +49,28 @@ Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset �
 Alerts and breaks beep, with at least 15 seconds between repeats of the same alert. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
 
 **Calibrate once:** sit exactly 50 cm (about arm's length) from the webcam and press `c`. Distance readings are much more accurate after this.
+
+### Profiles
+
+A profile records who is using EyeGuard and what they wear at the computer.
+
+```
+py eyeguard.py --profile "Sujan - glasses"
+```
+
+The first time you use a name, EyeGuard asks three short questions in the terminal and saves the answers. After that the same command loads the profile straight away. The name and what you wear appear beside the EyeGuard title on the panel.
+
+| Saved for each profile | Values |
+|---|---|
+| Name | Anything you like. Capitals, spaces and the kind of dash do not matter when you type it again. |
+| Correction | `none`, `glasses` or `contacts` |
+| Lens power | Spherical power in dioptres from your prescription, -20 to +20 in steps of 0.25. One value for both eyes. |
+| Safe distance | 50 cm by default. You can raise it, up to 100 cm. |
+| Calibration | The camera focal length and the date, once you have calibrated. Empty until then. |
+
+One person can have more than one profile, for example `"Sujan - glasses"` and `"Sujan - contacts"`.
+
+Profiles are stored in `profiles.json` in the project folder. To change a profile, edit that file or delete its entry and answer the questions again. EyeGuard cannot measure or diagnose eye power; it only stores the number you type. Without `--profile`, EyeGuard works exactly as before.
 
 Each run saves `logs/session_<date>_<time>.csv`. To get a report from the command line:
 

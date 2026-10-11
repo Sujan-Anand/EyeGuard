@@ -14,6 +14,7 @@ Uses your webcam + MediaPipe Face Mesh to track:
 Run:   python eyeguard.py            (normal: break every 20 min)
        python eyeguard.py --demo     (break every 60 s - for the judges' demo)
        python eyeguard.py --mute     (start with the sound off)
+       python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)
 Keys:  q = quit   c = calibrate distance (sit 50 cm away first)
        b = start a break now   r = reset session counters   m = sound on/off
 """
@@ -31,6 +32,8 @@ from datetime import datetime
 import cv2
 import numpy as np
 import mediapipe as mp
+
+import profiles
 
 # ---------------------------------------------------------------- settings
 CAMERA_INDEX = 0
@@ -252,6 +255,18 @@ def put_centred(img, text, y, color, scale=0.8, thick=2):
     put(img, text, ((width - text_w) // 2, y), color, scale, thick)
 
 
+def put_fit(img, text, pos, max_width, color=(255, 255, 255), scale=0.45, thick=1):
+    """put() for one line that must fit in max_width pixels: long text is cut
+    short and ends with "..."."""
+    def width(t):
+        return cv2.getTextSize(t, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)[0][0]
+    if width(text) > max_width:
+        while len(text) > 1 and width(text + "...") > max_width:
+            text = text[:-1]
+        text = text.rstrip() + "..."
+    put(img, text, pos, color, scale, thick)
+
+
 def draw_break_screen(frame, timer):
     """Blue break screen with the timer message and a bar of seconds done out
     of 20. Green while the timer runs, amber while it is paused or waiting."""
@@ -279,8 +294,24 @@ def main():
     ap.add_argument("--demo", action="store_true", help="break every 60 s instead of 20 min")
     ap.add_argument("--camera", type=int, default=CAMERA_INDEX)
     ap.add_argument("--mute", action="store_true", help="start with the sound off (m toggles it)")
+    ap.add_argument("--profile", metavar="NAME",
+                    help='use a saved profile, or create it with three questions, '
+                         'e.g. --profile "Sujan - glasses"')
     args = ap.parse_args()
     break_every_s = 60 if args.demo else 20 * 60
+
+    profile = None                      # None = no profile: everything works as before
+    if args.profile:
+        try:
+            profile = profiles.load_or_create(args.profile)
+        except ValueError as err:
+            print(f"Profile not used: {err}")
+        except KeyboardInterrupt:
+            print("\nCancelled.")
+            return
+    # two short lines beside the title: who is using it, and what they wear
+    profile_lines = ((profiles.to_ascii(profile["name"]), profiles.describe(profile))
+                     if profile else ())
 
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
@@ -416,6 +447,8 @@ def main():
         cv2.rectangle(panel, (0, 0), (300, 235), (30, 30, 30), -1)
         frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
         put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
+        for row, text in enumerate(profile_lines):
+            put_fit(frame, text, (132, 15 + 16 * row), 163, (220, 220, 220), 0.42)
         put(frame, f"Blinks/min: {blink_rate:4.1f}" if elapsed >= 15 else "Blinks/min: measuring...",
             (10, 60), blink_color(blink_rate))
         put(frame, f"Total blinks: {blinks_total}", (10, 85))
