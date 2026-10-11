@@ -90,7 +90,7 @@ class EyeTracker:
         self.blinks_total, self.drowsy_events = 0, 0
         self.session_start = None            # set when the first frame arrives
         self.last_break_end = None
-        self.on_break, self.break_look_start = False, None
+        self.on_break, self.break_timer = False, eg.BreakTimer()
         self.last_seen = None
         self.last_log = None                 # the clock second of the last saved row
         self.dist, self.ear, self.looking_away = 0.0, 0.0, False
@@ -145,7 +145,7 @@ class EyeTracker:
         self.last_seen = now
         if self.focal_px is None:
             self.focal_px = frame_width * 0.9                # typical laptop webcam (~60 deg FOV)
-        alert = ""
+        alert, alert_level = "", ""
         face = pts is not None
         roll = 0.0
 
@@ -154,7 +154,8 @@ class EyeTracker:
             self.blinks_total = self.drowsy_events = 0
             self.session_start = self.last_break_end = now
         if "break" in self.pending:
-            self.on_break, self.break_look_start = True, None
+            self.on_break = True
+            self.break_timer.reset()
         if "calibrate" in self.pending and face:
             self.focal_px = (eg.iris_width_px(pts) * eg.MIN_SAFE_DISTANCE_CM
                              / eg.IRIS_DIAMETER_CM)
@@ -179,7 +180,7 @@ class EyeTracker:
                 self.closed_frames += 1
                 self.closed_since = self.closed_since or now
                 if now - self.closed_since > eg.DROWSY_SECONDS:
-                    alert = "You look drowsy - take a proper break!"
+                    alert, alert_level = "You look drowsy - take a proper break!", "alert"
             else:
                 closed_for = now - (self.closed_since or now)
                 if self.closed_frames >= MIN_CLOSED_FRAMES and closed_for < eg.DROWSY_SECONDS:
@@ -201,26 +202,25 @@ class EyeTracker:
         # ---------------- 20-20-20 with verified break
         since_break = now - self.last_break_end
         if not self.on_break and since_break >= self.break_every_s:
-            self.on_break, self.break_look_start = True, None
+            self.on_break = True
+            self.break_timer.reset()
         if self.on_break:
-            if self.looking_away:
-                self.break_look_start = self.break_look_start or now
-                if now - self.break_look_start >= eg.BREAK_LOOK_AWAY_SECONDS:
-                    self.on_break, self.last_break_end = False, now
-                    since_break = 0.0
-            else:
-                self.break_look_start = None     # looked back at screen -> timer resets
+            # looking back at the screen pauses the timer; it never resets
+            if self.break_timer.update(self.looking_away, now) == "done":
+                self.on_break, self.last_break_end = False, now
+                since_break = 0.0
 
         # ---------------- alerts (only when not on break)
         if not self.on_break and face:
-            if elapsed > BLINK_ALERT_AFTER and blink_rate < eg.LOW_BLINK_RATE:
-                alert = f"Blink more! Only {blink_rate:.0f}/min"
+            low_blink = eg.blink_alert(blink_rate) if elapsed > BLINK_ALERT_AFTER else None
+            if low_blink:                        # "warn" below 7/min, "alert" below 5/min
+                alert, alert_level = low_blink
             if 0 < self.dist < eg.MIN_SAFE_DISTANCE_CM:
-                alert = f"Too close! {self.dist:.0f} cm - move back"
+                alert, alert_level = f"Too close! {self.dist:.0f} cm - move back", "alert"
             if abs(roll) > eg.HEAD_TILT_DEG:
-                alert = "Straighten your head / posture"
+                alert, alert_level = "Straighten your head / posture", "alert"
         if brightness < eg.DARK_BRIGHTNESS:
-            alert = "Room too dark - turn on a light"
+            alert, alert_level = "Room too dark - turn on a light", "alert"
 
         score = eg.strain_score(blink_rate, self.dist if face else 0,
                                 min(since_break, self.break_every_s) / 60,
@@ -233,9 +233,11 @@ class EyeTracker:
             "distance_cm": self.dist if face else None,
             "looking_away": self.looking_away, "brightness": brightness,
             "on_break": self.on_break,
-            "looked_away_s": (now - self.break_look_start) if self.break_look_start else None,
+            "break_done_s": self.break_timer.done,       # seconds looked away so far
+            "break_state": self.break_timer.state,       # waiting / counting / paused / done
             "next_break_s": max(0.0, self.break_every_s - since_break),
-            "strain_score": score, "alert": alert, "elapsed": elapsed,
+            "strain_score": score, "alert": alert, "alert_level": alert_level,
+            "elapsed": elapsed,
         }
 
         # ---------------- one row per second, same columns as the desktop CSV
@@ -255,20 +257,10 @@ class EyeTracker:
         self.last_break_end += gap
         self.blink_times = deque(t + gap for t in self.blink_times)
         self.closed_frames, self.closed_since = 0, None
-        self.break_look_start = None
+        self.break_timer.hold()                  # the break keeps the seconds already done
 
 
 # ------------------------------------------------------------------ drawing
-def put_centred(img, text, y, color, scale=0.8, thick=2):
-    """eyeguard.put(), centred and shrunk to fit narrow (phone) frames."""
-    width = img.shape[1]
-    text_w = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)[0][0]
-    if text_w > width - 20:
-        scale *= (width - 20) / text_w
-        text_w = width - 20
-    eg.put(img, text, ((width - text_w) // 2, y), color, scale, thick)
-
-
 def draw_overlay(frame, pts, state):
     """Draws the same panel, strain bar, break screen and alert banner as the
     desktop app onto the frame."""
@@ -284,7 +276,7 @@ def draw_overlay(frame, pts, state):
     eg.put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
     eg.put(frame, "Blinks/min: measuring..." if state["measuring"]
            else f"Blinks/min: {state['blink_rate']:4.1f}",
-           (10, 60), eg.level_color(state["blink_rate"] >= eg.LOW_BLINK_RATE))
+           (10, 60), eg.blink_color(state["blink_rate"]))
     eg.put(frame, f"Total blinks: {state['blinks_total']}", (10, 85))
     eg.put(frame, f"Distance: {state['distance_cm']:4.0f} cm" if face else "Distance: --",
            (10, 110), eg.level_color(not face or state["distance_cm"] >= eg.MIN_SAFE_DISTANCE_CM))
@@ -298,21 +290,13 @@ def draw_overlay(frame, pts, state):
     cv2.rectangle(frame, (10, h - 20), (10 + bar_w, h - 8), eg.level_color(score < 50), -1)
 
     if state["on_break"]:
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (0, 0), (w, h), (120, 60, 0), -1)
-        frame = cv2.addWeighted(overlay, 0.45, frame, 0.55, 0)
-        looked = state["looked_away_s"]
-        put_centred(frame, "20-20-20 BREAK", h // 2 - 40, (255, 255, 255), 1.1, 3)
-        put_centred(frame, "Look at something 20 feet away", h // 2, (255, 255, 255))
-        if looked is None:
-            put_centred(frame, "Still looking at the screen - timer paused",
-                        h // 2 + 40, (80, 80, 255))
-        else:
-            put_centred(frame, f"Good! {eg.BREAK_LOOK_AWAY_SECONDS - looked:.0f} s left",
-                        h // 2 + 40, (80, 230, 80))
+        timer = eg.BreakTimer()                  # same break screen as the desktop app
+        timer.done, timer.state = state["break_done_s"], state["break_state"]
+        frame = eg.draw_break_screen(frame, timer)
     elif state["alert"]:
-        cv2.rectangle(frame, (0, h - 70), (w, h - 28), (0, 0, 200), -1)
-        put_centred(frame, state["alert"], h - 40, (255, 255, 255))
+        cv2.rectangle(frame, (0, h - 70), (w, h - 28),
+                      eg.AMBER if state["alert_level"] == "warn" else eg.ALERT_RED, -1)
+        eg.put_centred(frame, state["alert"], h - 40, (255, 255, 255))
     return frame
 
 

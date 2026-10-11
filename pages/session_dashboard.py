@@ -7,7 +7,7 @@ import streamlit as st
 
 import charts
 import sessions
-from report import LOW_BLINK_RATE, MIN_SAFE_DISTANCE_CM
+from report import BLINK_ALERT_RATE, BLINK_WARN_RATE, MIN_SAFE_DISTANCE_CM
 
 st.title("Session dashboard")
 st.caption("Explore one EyeGuard session: blink rate, distance, breaks and strain score.")
@@ -73,10 +73,12 @@ if math.isnan(blink):
     blink_note, blink_colour = None, "off"
 elif blink >= 15:
     blink_note, blink_colour = "healthy", "normal"
-elif blink >= LOW_BLINK_RATE:
+elif blink >= BLINK_WARN_RATE:
     blink_note, blink_colour = "below normal", "off"
+elif blink >= BLINK_ALERT_RATE:
+    blink_note, blink_colour = "low", "inverse"
 else:
-    blink_note, blink_colour = "too low", "inverse"
+    blink_note, blink_colour = "very low", "inverse"
 
 with st.container(horizontal=True):
     st.metric("Duration", show(s["minutes"], "{:.0f} min"), border=True)
@@ -102,7 +104,8 @@ st.caption("Bold line = 30-second rolling average. Grey bars = break periods. "
            "Dashed red lines = limits.")
 st.plotly_chart(
     charts.timeline(df, "blink_rate", "Blink rate", "Blinks per minute",
-                    limits=[(LOW_BLINK_RATE, f"Alert below {LOW_BLINK_RATE}/min")],
+                    limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min"),
+                            (BLINK_ALERT_RATE, f"Strong alert below {BLINK_ALERT_RATE}/min")],
                     band=(15, 20, "Healthy 15-20/min")),
     config=charts.CONFIG, alt="Blink rate over the session")
 st.plotly_chart(

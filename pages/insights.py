@@ -6,7 +6,7 @@ import streamlit as st
 
 import charts
 import sessions
-from report import LOW_BLINK_RATE
+from report import BLINK_ALERT_RATE, BLINK_WARN_RATE
 
 st.title("Insights")
 st.caption("Patterns across all your sessions: time of day, strain trend, "
@@ -106,10 +106,12 @@ else:
     st.plotly_chart(
         charts.hourly(hours, "blink_rate", "Blink rate by hour of the day",
                       "Blinks per minute", "blinks/min",
-                      limits=[(LOW_BLINK_RATE, "")], band=(15, 20, "")),
+                      limits=[(BLINK_WARN_RATE, ""), (BLINK_ALERT_RATE, "")],
+                      band=(15, 20, "")),
         config=charts.CONFIG, alt="Average blink rate for each hour of the day")
-    st.caption(f"Green band = healthy 15-20 blinks/min. Dashed red line = alert "
-               f"level ({LOW_BLINK_RATE}/min). Hours with under "
+    st.caption(f"Green band = healthy 15-20 blinks/min. Dashed red lines = warning "
+               f"({BLINK_WARN_RATE}/min) and strong alert ({BLINK_ALERT_RATE}/min). "
+               "Hours with under "
                f"{sessions.MIN_HOUR_MINUTES} minutes of data are not shown.")
 
 # --------------------------------------------------------------- strain trend

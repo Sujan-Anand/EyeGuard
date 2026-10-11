@@ -96,10 +96,13 @@ st.table({
     "Rule": [
         f"Every 20 minutes, look away for {eg.BREAK_LOOK_AWAY_SECONDS} seconds. "
         "Looking away means the nose is well off the midpoint between the eyes, or "
-        "the face has left the picture. Looking back resets the timer.",
+        "the face has left the picture. Looking back pauses the timer where it "
+        "is, and looking away again continues it. A glance back shorter than "
+        f"{eg.BREAK_GLANCE_SECONDS} seconds is ignored.",
         f"The line between the outer eye corners is tilted more than {eg.HEAD_TILT_DEG}°.",
         f"The average brightness of the frame is below {eg.DARK_BRIGHTNESS} out of 255.",
-        f"Fewer than {eg.LOW_BLINK_RATE} blinks per minute. Normal is about 15-20.",
+        f"Warning below {eg.BLINK_WARN_RATE} blinks per minute, strong alert below "
+        f"{eg.BLINK_ALERT_RATE}. Normal is about 15-20.",
     ],
 })
 

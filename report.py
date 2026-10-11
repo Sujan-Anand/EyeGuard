@@ -15,7 +15,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 MIN_SAFE_DISTANCE_CM = 50
-LOW_BLINK_RATE = 10
+BLINK_WARN_RATE = 7                  # same two levels as eyeguard.py
+BLINK_ALERT_RATE = 5
+LOW_BLINK_RATE = BLINK_WARN_RATE     # older name for the warning level
 
 
 def load(path=None):
@@ -67,7 +69,8 @@ def plot(df, s, out_png):
 
     ax[0].plot(t, smooth("blink_rate"), color="#2a7de1")
     ax[0].axhspan(15, 20, color="green", alpha=0.15, label="Normal (15-20/min)")
-    ax[0].axhline(LOW_BLINK_RATE, color="red", ls="--", label="Alert threshold")
+    ax[0].axhline(BLINK_WARN_RATE, color="orange", ls="--", label=f"Warning ({BLINK_WARN_RATE}/min)")
+    ax[0].axhline(BLINK_ALERT_RATE, color="red", ls="--", label=f"Strong alert ({BLINK_ALERT_RATE}/min)")
     ax[0].set_ylabel("Blinks / min")
     ax[0].legend(loc="upper right")
 

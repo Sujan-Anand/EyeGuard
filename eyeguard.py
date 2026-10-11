@@ -3,11 +3,12 @@ EyeGuard - Smart Eye Strain Monitor for Students
 PySustain-2026 | Track 1: Code to Cure | SDG 3.4
 
 Uses your webcam + MediaPipe Face Mesh to track:
-  * Blink rate (Eye Aspect Ratio)          -> alerts when you blink too little
+  * Blink rate (Eye Aspect Ratio)          -> warns below 7/min, strong alert below 5/min
   * Distance from the screen (iris size)   -> alerts when you sit too close
   * Drowsiness (eyes closed > 2 s)
   * Head tilt (posture) and room lighting
-  * 20-20-20 rule with a VERIFIED break (camera checks you really looked away)
+  * 20-20-20 rule with a VERIFIED break (camera checks you really looked away;
+    looking back at the screen pauses the 20 s timer)
   * Live Eye Strain Score (0-100), logged to CSV for report.py
 
 Run:   python eyeguard.py            (normal: break every 20 min)
@@ -35,9 +36,13 @@ import mediapipe as mp
 CAMERA_INDEX = 0
 IRIS_DIAMETER_CM = 1.17          # human iris is ~11.7 mm for almost everyone
 MIN_SAFE_DISTANCE_CM = 50        # closer than this -> "too close"
-LOW_BLINK_RATE = 10              # blinks/min; normal is ~15-20
+BLINK_WARN_RATE = 7              # blinks/min below this -> warning; normal is ~15-20
+BLINK_ALERT_RATE = 5             # blinks/min below this -> strong alert
+LOW_BLINK_RATE = BLINK_WARN_RATE # older name for the warning level
 DROWSY_SECONDS = 2.0             # eyes closed this long -> drowsy
 BREAK_LOOK_AWAY_SECONDS = 20     # the "20 seconds" of 20-20-20
+BREAK_GLANCE_SECONDS = 0.5       # looking back for less than this is ignored
+MAX_FRAME_GAP = 1.0              # a frozen camera adds at most this much break time
 DARK_BRIGHTNESS = 60             # mean pixel value below this -> room too dark
 HEAD_TILT_DEG = 15               # head roll beyond this -> posture warning
 ALERT_COOLDOWN = 15              # seconds between repeats of the same alert
@@ -141,11 +146,75 @@ def strain_score(blink_rate, dist, mins_since_break, drowsy_events, break_every_
     return int(round(min(100, score)))
 
 
-def beep():
+def blink_alert(blink_rate):
+    """(message, level) when the blink rate is low, else None.
+    level is "warn" below BLINK_WARN_RATE and "alert" below BLINK_ALERT_RATE."""
+    if blink_rate < BLINK_ALERT_RATE:
+        return f"Blink now! Only {blink_rate:.0f}/min", "alert"
+    if blink_rate < BLINK_WARN_RATE:
+        return f"Blink more! Only {blink_rate:.0f}/min", "warn"
+    return None
+
+
+class BreakTimer:
+    """The 20 seconds of a 20-20-20 break.
+
+    It only counts while you look away. Looking back at the screen PAUSES it
+    at its current value, and looking away again continues from there. A
+    glance back shorter than BREAK_GLANCE_SECONDS is ignored.
+    state is "waiting" (not looked away yet), "counting", "paused" or "done"."""
+
+    def __init__(self, seconds=BREAK_LOOK_AWAY_SECONDS, glance=BREAK_GLANCE_SECONDS):
+        self.seconds, self.glance = seconds, glance
+        self.reset()
+
+    def reset(self):
+        self.done = 0.0              # seconds of looking away so far
+        self.state = "waiting"
+        self._facing = 0.0           # how long the current look back has lasted
+        self._last = None            # time of the previous frame
+
+    def hold(self):
+        """Call when frames stopped for a while, so the gap is not counted."""
+        self._last, self._facing = None, 0.0
+
+    def update(self, looking_away, now):
+        """Call once per frame during a break. Returns "paused" at the moment
+        the timer pauses, "done" when the break is complete, otherwise None."""
+        step = 0.0 if self._last is None else min(max(now - self._last, 0.0), MAX_FRAME_GAP)
+        self._last = now
+        if self.state == "done":
+            return None
+        if looking_away:
+            self.done += step + self._facing     # a short glance back still counts
+            self._facing = 0.0
+            self.state = "counting"
+            if self.done >= self.seconds - 1e-6:
+                self.done, self.state = float(self.seconds), "done"
+                return "done"
+        elif self.state == "counting":
+            self._facing += step
+            if self._facing >= self.glance - 1e-6:
+                self._facing, self.state = 0.0, "paused"
+                return "paused"
+        return None
+
+    def status(self):
+        """(text, level) for the break screen: level is "good" while the timer
+        is running and "warn" while it is waiting for you to look away."""
+        progress = f"({int(self.done + 1e-6)}/{self.seconds} s)"      # whole seconds done
+        if self.state in ("counting", "done"):
+            return f"Good! Keep looking away {progress}", "good"
+        if self.state == "paused":
+            return f"Paused - look away to continue {progress}", "warn"
+        return f"Look away to start the timer {progress}", "warn"
+
+
+def beep(freq=1000, ms=300):
     try:
         if sys.platform.startswith("win"):
             import winsound
-            winsound.Beep(1000, 300)
+            winsound.Beep(freq, ms)
         else:
             print("\a", end="", flush=True)
     except Exception:
@@ -158,8 +227,50 @@ def put(img, text, pos, color=(255, 255, 255), scale=0.6, thick=2):
     cv2.putText(img, text, pos, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
 
 
+AMBER = (0, 170, 255)                # warnings (OpenCV colours are blue, green, red)
+ALERT_RED = (0, 0, 200)              # strong alerts
+
+
 def level_color(good):
     return (80, 200, 80) if good else (60, 60, 230)
+
+
+def blink_color(blink_rate):
+    """Green when blinking enough, amber at the warning level, red at the alert level."""
+    if blink_rate >= BLINK_WARN_RATE:
+        return level_color(True)
+    return AMBER if blink_rate >= BLINK_ALERT_RATE else level_color(False)
+
+
+def put_centred(img, text, y, color, scale=0.8, thick=2):
+    """put(), centred and shrunk to fit narrow frames."""
+    width = img.shape[1]
+    text_w = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)[0][0]
+    if text_w > width - 20:
+        scale *= (width - 20) / text_w
+        text_w = width - 20
+    put(img, text, ((width - text_w) // 2, y), color, scale, thick)
+
+
+def draw_break_screen(frame, timer):
+    """Blue break screen with the timer message and a bar of seconds done out
+    of 20. Green while the timer runs, amber while it is paused or waiting."""
+    h, w = frame.shape[:2]
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, h), (120, 60, 0), -1)
+    frame = cv2.addWeighted(overlay, 0.45, frame, 0.55, 0)
+    text, level = timer.status()
+    color = (80, 230, 80) if level == "good" else AMBER
+    put_centred(frame, "20-20-20 BREAK", h // 2 - 40, (255, 255, 255), 1.1, 3)
+    put_centred(frame, "Look at something 20 feet away", h // 2, (255, 255, 255))
+    put_centred(frame, text, h // 2 + 40, color)
+    half = min(200, w // 2 - 20)
+    x0, x1, y0 = w // 2 - half, w // 2 + half, h // 2 + 58
+    filled = x0 + int((x1 - x0) * timer.done / timer.seconds)
+    cv2.rectangle(frame, (x0, y0), (x1, y0 + 14), (60, 60, 60), -1)
+    cv2.rectangle(frame, (x0, y0), (filled, y0 + 14), color, -1)
+    cv2.rectangle(frame, (x0, y0), (x1, y0 + 14), (255, 255, 255), 1)
+    return frame
 
 
 # ------------------------------------------------------------- main app
@@ -194,22 +305,22 @@ def main():
     blinks_total, drowsy_events = 0, 0
     session_start = time.time()
     last_break_end = session_start
-    on_break, break_look_start = False, None
+    on_break, break_timer = False, BreakTimer()
     last_alert = {}
-    current_alert = ""
+    current_alert, alert_level = "", "alert"
     last_log = 0.0
     dist = 0.0
     ear = 0.0
     looking_away = False
     sound_on = not args.mute            # m key toggles this
 
-    def sound():
+    def sound(short=False):
         if sound_on:
-            beep()
+            beep(800, 150) if short else beep()
 
-    def alert(key, msg):
-        nonlocal current_alert
-        current_alert = msg
+    def alert(key, msg, level="alert"):
+        nonlocal current_alert, alert_level
+        current_alert, alert_level = msg, level
         now = time.time()
         if now - last_alert.get(key, 0) > ALERT_COOLDOWN:
             last_alert[key] = now
@@ -273,21 +384,22 @@ def main():
         # ---------------- 20-20-20 with verified break
         since_break = now - last_break_end
         if not on_break and since_break >= break_every_s:
-            on_break, break_look_start = True, None
+            on_break = True
+            break_timer.reset()
             sound()
         if on_break:
-            if looking_away:
-                break_look_start = break_look_start or now
-                if now - break_look_start >= BREAK_LOOK_AWAY_SECONDS:
-                    on_break, last_break_end = False, now
-                    sound()
-            else:
-                break_look_start = None   # looked back at screen -> timer resets
+            event = break_timer.update(looking_away, now)
+            if event == "paused":         # looked back at the screen: one short beep
+                sound(short=True)
+            elif event == "done":
+                on_break, last_break_end = False, now
+                sound()
 
         # ---------------- alerts (only when not on break)
         if not on_break and face:
-            if elapsed > 30 and blink_rate < LOW_BLINK_RATE:
-                alert("blink", f"Blink more! Only {blink_rate:.0f}/min")
+            low_blink = blink_alert(blink_rate) if elapsed > 30 else None
+            if low_blink:
+                alert("blink_" + low_blink[1], *low_blink)
             if 0 < dist < MIN_SAFE_DISTANCE_CM:
                 alert("dist", f"Too close! {dist:.0f} cm - move back")
             if abs(roll) > HEAD_TILT_DEG:
@@ -305,7 +417,7 @@ def main():
         frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
         put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
         put(frame, f"Blinks/min: {blink_rate:4.1f}" if elapsed >= 15 else "Blinks/min: measuring...",
-            (10, 60), level_color(blink_rate >= LOW_BLINK_RATE))
+            (10, 60), blink_color(blink_rate))
         put(frame, f"Total blinks: {blinks_total}", (10, 85))
         put(frame, f"Distance: {dist:4.0f} cm" if face else "Distance: --",
             (10, 110), level_color(dist >= MIN_SAFE_DISTANCE_CM))
@@ -321,18 +433,10 @@ def main():
         cv2.rectangle(frame, (10, h - 20), (10 + bar_w, h - 8), level_color(score < 50), -1)
 
         if on_break:
-            overlay = frame.copy()
-            cv2.rectangle(overlay, (0, 0), (w, h), (120, 60, 0), -1)
-            frame = cv2.addWeighted(overlay, 0.45, frame, 0.55, 0)
-            done = (now - break_look_start) if break_look_start else 0
-            put(frame, "20-20-20 BREAK", (w // 2 - 150, h // 2 - 40), (255, 255, 255), 1.1, 3)
-            put(frame, "Look at something 20 feet away", (w // 2 - 210, h // 2), (255, 255, 255), 0.8)
-            msg = (f"Good! {BREAK_LOOK_AWAY_SECONDS - done:.0f} s left" if break_look_start
-                   else "Still looking at the screen - timer paused")
-            put(frame, msg, (w // 2 - 200, h // 2 + 40),
-                (80, 230, 80) if break_look_start else (80, 80, 255), 0.8)
+            frame = draw_break_screen(frame, break_timer)
         elif current_alert:
-            cv2.rectangle(frame, (0, h - 70), (w, h - 28), (0, 0, 200), -1)
+            cv2.rectangle(frame, (0, h - 70), (w, h - 28),
+                          AMBER if alert_level == "warn" else ALERT_RED, -1)
             put(frame, current_alert, (15, h - 40), (255, 255, 255), 0.8)
 
         cv2.imshow("EyeGuard - Eye Strain Monitor", frame)
@@ -353,7 +457,8 @@ def main():
             focal_px = iris_width_px(pts) * MIN_SAFE_DISTANCE_CM / IRIS_DIAMETER_CM
             print(f"Calibrated at {MIN_SAFE_DISTANCE_CM} cm (focal = {focal_px:.0f} px)")
         if key == ord("b"):
-            on_break, break_look_start = True, None
+            on_break = True
+            break_timer.reset()
         if key == ord("r"):
             blink_times.clear()
             blinks_total = drowsy_events = 0

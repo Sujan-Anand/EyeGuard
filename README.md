@@ -4,6 +4,8 @@ PySustain-2026 · Track 1: Code to Cure · SDG 3.4 (primary), SDG 4 (secondary)
 
 EyeGuard uses a webcam and Python to watch for eye strain while you work at a screen. It tracks blink rate, distance from the screen, drowsiness, head tilt and room lighting, enforces the 20-20-20 rule with a break that the camera verifies, and gives a live Eye Strain Score from 0 to 100.
 
+Blink alerts have two levels: a warning below 7 blinks per minute and a strong alert below 5.
+
 It has two parts:
 
 - **Desktop app** (`eyeguard.py`): the live monitor. It saves one row per second to a CSV in `logs/`.
@@ -114,7 +116,8 @@ Live video uses WebRTC. The app is set up with public STUN servers, which is eno
 |---|---|
 | Blink detection | Eye Aspect Ratio (EAR) from 6 landmark points per eye. The threshold is set to 75% of your own open-eye EAR in the first few seconds. |
 | Distance | The iris is about 11.7 mm wide in almost every adult, so distance = focal length × 1.17 cm ÷ iris width in pixels. |
-| Verified break | Head turned away (nose offset from the midpoint between the eyes) or face out of the picture for 20 s. Looking back resets the timer. |
+| Blink alerts | Warning ("Blink more!") below 7 blinks per minute, strong alert ("Blink now!") below 5. Normal is about 15-20. |
+| Verified break | Head turned away (nose offset from the midpoint between the eyes) or face out of the picture for a total of 20 s. Looking back at the screen pauses the timer (12 s stays 12 s) with one short beep, and looking away again continues from there. A glance back shorter than 0.5 s is ignored. |
 | Drowsiness | Eyes closed for more than 2 s. |
 | Posture | Head tilted more than 15°, measured between the outer eye corners. |
 | Lighting | Average frame brightness below 60 out of 255. |
@@ -140,6 +143,14 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `requirements-desktop.txt` | For your laptop. |
 
 `logs/` (your recorded sessions) and `profiles.json` (your saved settings) stay on your laptop. Git ignores both, so they are never uploaded to GitHub.
+
+## Tests
+
+```
+py -m unittest discover -s tests -v
+```
+
+The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute) and the two blink alert levels.
 
 ## Future scope
 

@@ -123,7 +123,8 @@ st.markdown(
     f"2. Sit at arm's length (about {eg.MIN_SAFE_DISTANCE_CM} cm) with light on your face.\n"
     "3. Work normally for a minute. Numbers and alerts appear on the video.\n"
     "4. When the blue break screen appears, look away from the screen for "
-    f"{eg.BREAK_LOOK_AWAY_SECONDS} seconds. Looking back pauses the timer.")
+    f"{eg.BREAK_LOOK_AWAY_SECONDS} seconds. Looking back pauses the timer; "
+    "looking away again continues from where it stopped.")
 
 
 def on_frame(frame):
@@ -191,15 +192,22 @@ def live_numbers():
     if not tracker.is_running():
         st.caption("Video stopped. These are the last numbers.")
     elif s["on_break"]:
-        if s["looked_away_s"] is None:
-            st.info("**20-20-20 break.** Look at something far away. The timer starts "
-                    "when you look away from the screen.", icon=":material/visibility_off:")
-        else:
-            left = max(0, eg.BREAK_LOOK_AWAY_SECONDS - s["looked_away_s"])
-            st.success(f"**Good, keep looking away.** {left:.0f} seconds left.",
+        total = eg.BREAK_LOOK_AWAY_SECONDS
+        done = min(int(s["break_done_s"] + 1e-6), total)      # whole seconds done
+        if s["break_state"] == "paused":
+            st.warning(f"**Paused — look away to continue ({done}/{total} s)**",
+                       icon=":material/pause_circle:")
+        elif s["break_state"] == "counting":
+            st.success(f"**Good, keep looking away ({done}/{total} s)**",
                        icon=":material/timer:")
-    elif s["alert"]:
+        else:
+            st.warning(f"**20-20-20 break — look away to start the timer ({done}/{total} s)**",
+                       icon=":material/visibility_off:")
+        st.progress(done / total, text=f"{done} of {total} seconds looking away")
+    elif s["alert"] and s["alert_level"] == "warn":
         st.warning(s["alert"], icon=":material/warning:")
+    elif s["alert"]:
+        st.error(s["alert"], icon=":material/error:")
     elif not s["face"]:
         st.caption("No face in view.")
 
