@@ -188,6 +188,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `live.py` | Keeps the live session between video frames for the Live Check page and draws the overlay. |
 | `sessions.py` | Finds, loads and checks session CSVs; combines sessions for Insights. |
 | `charts.py` | Plotly charts. |
+| `ui.py` | The design system: colours, type and the shared page blocks (page header, KPI card, status pill, tip card, alert box). The theme for Streamlit's own widgets is in `.streamlit/config.toml`. |
 | `requirements.txt`, `packages.txt` | For Streamlit Cloud. |
 | `requirements-desktop.txt` | For your laptop. |
 

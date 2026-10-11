@@ -1,12 +1,30 @@
+# EyeGuard look, matching the slide deck:
+# deep teal #0F3B3E, mid teal #2C6E6A, light #F4F8F6, amber accent #F2A541.
+# Headings in Rubik, body text in Nunito Sans (loaded from Google Fonts;
+# the browser falls back to its own sans-serif font if they cannot load).
+
 [theme]
 base = "light"
-primaryColor = "#0F8B8D"
-backgroundColor = "#F5FBFB"
-secondaryBackgroundColor = "#DDF0F0"
-textColor = "#12343B"
-font = "sans serif"
+primaryColor = "#2C6E6A"
+backgroundColor = "#F4F8F6"
+secondaryBackgroundColor = "#E4EEEA"
+textColor = "#0F3B3E"
+linkColor = "#2C6E6A"
+borderColor = "#D5E3DE"
+
+font = "'Nunito Sans':https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap"
+headingFont = "Rubik:https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&display=swap"
 baseFontSize = 17
+headingFontSizes = ["2.1rem", "1.5rem", "1.2rem", "1.05rem", "1rem", "0.9rem"]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
 baseRadius = "large"
+
+# status colours (also used by st.success / st.warning / st.error)
+greenColor = "#17603A"
+orangeColor = "#B06A00"
+yellowColor = "#F2A541"
+redColor = "#9B1C13"
+blueColor = "#2C6E6A"
 
 [browser]
 gatherUsageStats = false

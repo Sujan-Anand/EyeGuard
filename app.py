@@ -7,14 +7,17 @@ Run locally:   py -m streamlit run app.py
 
 import streamlit as st
 
+import ui
+
 st.set_page_config(page_title="EyeGuard", page_icon="👁️", layout="wide")
+ui.apply_theme()                     # shared colours, type and card styles (ui.py)
 
 # A little CSS on top of .streamlit/config.toml: the hero banner and the
 # numbered step badges. clamp() keeps text readable on a phone and a projector.
 st.markdown("""
 <style>
 .hero {
-    background: linear-gradient(135deg, #0F8B8D 0%, #3A7CA5 100%);
+    background: linear-gradient(135deg, #0F3B3E 0%, #2C6E6A 100%);
     color: white; border-radius: 18px;
     padding: clamp(1.2rem, 4vw, 2.8rem); margin-bottom: 1.2rem;
 }
@@ -23,7 +26,7 @@ st.markdown("""
 .hero-tag   { font-size: 0.9rem; opacity: 0.9; margin-top: 0.9rem; }
 .step-num {
     width: 2.4rem; height: 2.4rem; border-radius: 50%;
-    background: #0F8B8D; color: white; font-weight: 700; font-size: 1.2rem;
+    background: #2C6E6A; color: white; font-weight: 700; font-size: 1.2rem;
     display: flex; align-items: center; justify-content: center;
 }
 </style>
