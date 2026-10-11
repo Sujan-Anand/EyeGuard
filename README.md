@@ -181,7 +181,7 @@ It opens at http://localhost:8501.
 Streamlit Cloud reads three files from the repository:
 
 - `requirements.txt`: the Python packages, pinned to the exact versions the website was built and tested with.
-- `packages.txt`: two system libraries that OpenCV needs on Linux.
+- `packages.txt`: four system libraries that OpenCV and MediaPipe need on Linux (MediaPipe needs `libEGL.so.1`).
 - `.streamlit/config.toml`: the colour theme.
 
 Things to know after deploying:
