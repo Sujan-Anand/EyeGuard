@@ -70,6 +70,27 @@ The first time you use a name, EyeGuard asks three short questions in the termin
 
 One person can have more than one profile, for example `"Sujan - glasses"` and `"Sujan - contacts"`.
 
+### Glasses and eye power
+
+EyeGuard measures distance from how big your iris looks to the camera. Glasses change that: a minus lens (short sight) makes the eye look smaller, so EyeGuard would think you are further away than you are and miss "Too close". A plus lens does the opposite. Contact lenses sit on the eye and change almost nothing. Blink detection is a ratio of eye height to eye width, so it is not affected.
+
+With a profile, EyeGuard corrects for this:
+
+```
+m = 1 / (1 - d x P)        P = lens power in dioptres, d = 0.015 m (lens to eye)
+corrected distance = raw distance x m
+```
+
+At -7.00 D, m is about 0.905: the eye looks about 10% smaller, and a raw reading of 60 cm becomes 54 cm. For contact lenses and for no correction, m = 1.
+
+- **Before you calibrate**, a glasses profile uses the formula and the screen says `Estimated for -7.00 D glasses - press c to calibrate for best accuracy`.
+- **To calibrate**, wear the glasses or contacts you normally use at the computer, sit 50 cm away, then press `c`. The result is saved in the profile and used every time after that. A calibration made with your glasses on already includes the lens, so the formula is no longer applied. Calibrate again if you change camera.
+- **Safe distance:** the "Too close" alert and the strain score use the profile's safe distance instead of 50 cm.
+- **Glare:** with a glasses profile, if the eye readings jump about for about 2 seconds, EyeGuard asks `Glare on your glasses? Reduce light behind you or tilt the screen.`
+- **Strong lenses:** at 6 D or more, EyeGuard shows one reminder per session to get a full eye check-up regularly.
+
+Limits: the formula uses the spherical power only and ignores astigmatism (cylinder). It assumes the lens sits 15 mm from the eye. EyeGuard cannot measure or diagnose eye power; it only uses the number you enter, and nothing here is medical advice.
+
 Profiles are stored in `profiles.json` in the project folder. To change a profile, edit that file or delete its entry and answer the questions again. EyeGuard cannot measure or diagnose eye power; it only stores the number you type. Without `--profile`, EyeGuard works exactly as before.
 
 Each run saves `logs/session_<date>_<time>.csv`. To get a report from the command line:
@@ -138,7 +159,7 @@ Live video uses WebRTC. The app is set up with public STUN servers, which is eno
 | Feature | Method |
 |---|---|
 | Blink detection | Eye Aspect Ratio (EAR) from 6 landmark points per eye. The threshold is set to 75% of your own open-eye EAR in the first few seconds. |
-| Distance | The iris is about 11.7 mm wide in almost every adult, so distance = focal length × 1.17 cm ÷ iris width in pixels. |
+| Distance | The iris is about 11.7 mm wide in almost every adult, so distance = focal length × 1.17 cm ÷ iris width in pixels. With a glasses profile it is then multiplied by the lens factor m. |
 | Blink alerts | Warning ("Blink more!") below 7 blinks per minute, strong alert ("Blink now!") below 5. Normal is about 15-20. |
 | Verified break | Head turned away (nose offset from the midpoint between the eyes) or face out of the picture for a total of 20 s. Looking back at the screen pauses the timer (12 s stays 12 s) with one short beep, and looking away again continues from there. A glance back shorter than 0.5 s is ignored. |
 | Drowsiness | Eyes closed for more than 2 s. |
@@ -173,7 +194,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 py -m unittest discover -s tests -v
 ```
 
-The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute) and the two blink alert levels.
+The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute), the two blink alert levels, profiles, and the glasses correction (lens formula, saved calibration, safe distance, glare warning).
 
 ## Future scope
 

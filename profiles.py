@@ -15,12 +15,25 @@ never leaves your laptop):
 One person can have several profiles, for example one for glasses and one
 for contact lenses. EyeGuard cannot measure eye power: the number comes
 from your prescription.
+
+Why the power matters: EyeGuard measures distance from how big your iris
+looks to the camera. Glasses change that. A minus lens makes the eye look
+smaller (so you seem further away than you are), a plus lens bigger:
+
+    m = 1 / (1 - d * P)      P = lens power in dioptres
+                             d = lens-to-eye distance, about 0.015 m
+    corrected distance = raw distance * m
+
+Contact lenses sit on the eye, so m = 1. Astigmatism (cylinder) is ignored.
+A calibration made while wearing the glasses already includes this effect,
+so a profile with a saved calibration does not use the formula.
 """
 
 import json
 import os
 import tempfile
 import unicodedata
+from datetime import date
 
 PROFILES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
 
@@ -30,6 +43,9 @@ CORRECTION_LABELS = {"none": "no glasses or contacts", "glasses": "glasses",
 POWER_MIN, POWER_MAX, POWER_STEP = -20.0, 20.0, 0.25
 DEFAULT_SAFE_DISTANCE_CM = 50        # same as MIN_SAFE_DISTANCE_CM in eyeguard.py
 MAX_SAFE_DISTANCE_CM = 100
+LENS_DISTANCE_M = 0.015              # glasses sit about 15 mm in front of the eye
+HIGH_POWER_D = 6.0                   # at or above this, show the eye check-up reminder
+CALIBRATION_DISTANCE_CM = 50         # where you sit when you press c
 DASHES = "‐‑‒–—―−"     # hyphens, en/em dashes, minus sign
 
 
@@ -111,6 +127,67 @@ def summary(profile):
     """One line for the terminal."""
     return (f"{profile['name']}: {describe(profile)}, safe distance "
             f"{profile['safe_distance_cm']} cm")
+
+
+# ------------------------------------------------------- glasses and distance
+def lens_magnification(correction, power):
+    """How big glasses make the eye look to the camera, compared with no
+    glasses: m = 1 / (1 - d * P). Below 1 for minus lenses, above 1 for plus
+    lenses, exactly 1 for contact lenses or no correction."""
+    if correction != "glasses":
+        return 1.0
+    return 1.0 / (1.0 - LENS_DISTANCE_M * power)
+
+
+def is_calibrated(profile):
+    return bool(profile and profile["focal_px"])
+
+
+def distance_factor(profile):
+    """What to multiply the raw distance by for this profile.
+    1 with no profile, and 1 once the profile has a saved calibration
+    (calibrating while wearing the glasses already includes the lens)."""
+    if not profile or is_calibrated(profile):
+        return 1.0
+    return lens_magnification(profile["correction"], profile["power"])
+
+
+def corrected_distance(raw_cm, profile):
+    return raw_cm * distance_factor(profile)
+
+
+def estimate_note(profile):
+    """Shown while the distance is only estimated from the lens power."""
+    if (not profile or is_calibrated(profile) or profile["correction"] != "glasses"
+            or profile["power"] == 0):
+        return None
+    return (f"Estimated for {profile['power']:+.2f} D glasses \u2014 press c to calibrate "
+            "for best accuracy")
+
+
+def calibration_note(profile):
+    """What to do before pressing c. None once the profile is calibrated."""
+    if not profile or is_calibrated(profile):
+        return None
+    if profile["correction"] == "none":
+        return f"Sit {CALIBRATION_DISTANCE_CM} cm away, then press c to calibrate distance."
+    return ("Wear the glasses or contacts you normally use at the computer, sit "
+            f"{CALIBRATION_DISTANCE_CM} cm away, then press c.")
+
+
+def high_power_note(profile):
+    """A gentle once-per-session reminder for strong lenses. Not a diagnosis."""
+    if not profile or profile["correction"] == "none" or abs(profile["power"]) < HIGH_POWER_D:
+        return None
+    wearing = "glasses" if profile["correction"] == "glasses" else "contact lens"
+    return f"Your {wearing} power is high. Remember to get a full eye check-up regularly."
+
+
+def save_calibration(profile, focal_px, today=None, path=None):
+    """Stores a new calibration in the profile and saves it. Returns the profile."""
+    updated = dict(profile, focal_px=float(focal_px),
+                   calibrated_on=today or date.today().isoformat())
+    return save(updated, path)
 
 
 # ---------------------------------------------------------------- the file

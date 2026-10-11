@@ -220,10 +220,11 @@ class DesktopProfileTest(TempProfilesFile):
         self.assertFalse(any("Profile" in line for line in r["printed"].splitlines()))
         self.assertFalse(os.path.exists(profiles.PROFILES_PATH))
 
-    def test_a_profile_does_not_change_measurements_or_the_log_yet(self):
+    def test_a_plain_profile_changes_no_numbers(self):
+        # no glasses, default safe distance: the same log as running with no profile
         plain = run_desktop(["--demo"], frames=70, step=1.0)
-        profiles.save(profiles.make("High minus", "glasses", -10, 80))
-        with_profile = run_desktop(["--demo", "--profile", "High minus"], frames=70, step=1.0)
+        profiles.save(profiles.make("Asha"))
+        with_profile = run_desktop(["--demo", "--profile", "Asha"], frames=70, step=1.0)
         self.assertEqual(with_profile["header"], plain["header"])           # same CSV columns
         self.assertEqual(with_profile["rows"], plain["rows"])               # same numbers
         self.assertEqual(with_profile["beeps"], plain["beeps"])

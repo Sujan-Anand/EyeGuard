@@ -7,6 +7,8 @@ Uses your webcam + MediaPipe Face Mesh to track:
   * Distance from the screen (iris size)   -> alerts when you sit too close
   * Drowsiness (eyes closed > 2 s)
   * Head tilt (posture) and room lighting
+  * Profiles for glasses / contact lens wearers: distance corrected for lens
+    power, saved calibration, your own safe distance, glare warning
   * 20-20-20 rule with a VERIFIED break (camera checks you really looked away;
     looking back at the screen pauses the 20 s timer)
   * Live Eye Strain Score (0-100), logged to CSV for report.py
@@ -46,6 +48,12 @@ DROWSY_SECONDS = 2.0             # eyes closed this long -> drowsy
 BREAK_LOOK_AWAY_SECONDS = 20     # the "20 seconds" of 20-20-20
 BREAK_GLANCE_SECONDS = 0.5       # looking back for less than this is ignored
 MAX_FRAME_GAP = 1.0              # a frozen camera adds at most this much break time
+GLARE_SECONDS = 2.0              # glare check looks at this much recent video
+GLARE_IRIS_JUMP = 0.08           # iris width changing 8% between two frames is a "jump"
+GLARE_IRIS_JUMPS = 4             # this many jumps in that time -> probably glare
+GLARE_EAR_FLIPS = 6              # eye "opening/closing" this often -> probably glare
+GLARE_MIN_FRAMES = 8             # needs at least this many frames to decide
+GLARE_MESSAGE = "Glare on your glasses? Reduce light behind you or tilt the screen."
 DARK_BRIGHTNESS = 60             # mean pixel value below this -> room too dark
 HEAD_TILT_DEG = 15               # head roll beyond this -> posture warning
 ALERT_COOLDOWN = 15              # seconds between repeats of the same alert
@@ -137,13 +145,15 @@ def head_pose(pts):
     return yaw, roll
 
 
-def strain_score(blink_rate, dist, mins_since_break, drowsy_events, break_every_min):
-    """0 = relaxed eyes, 100 = heavy strain."""
+def strain_score(blink_rate, dist, mins_since_break, drowsy_events, break_every_min,
+                 safe_cm=MIN_SAFE_DISTANCE_CM):
+    """0 = relaxed eyes, 100 = heavy strain. safe_cm is the "too close" limit
+    (a profile can raise it above the usual 50 cm)."""
     score = 0.0
     if blink_rate < 15:                                     # up to 40 points
         score += min(40, (15 - blink_rate) * 4)
-    if 0 < dist < MIN_SAFE_DISTANCE_CM:                     # up to 30 points
-        score += min(30, (MIN_SAFE_DISTANCE_CM - dist) * 1.5)
+    if 0 < dist < safe_cm:                                  # up to 30 points
+        score += min(30, (safe_cm - dist) * 1.5)
     score += min(20, 20 * mins_since_break / break_every_min)  # up to 20 points
     score += min(10, drowsy_events * 5)                     # up to 10 points
     return int(round(min(100, score)))
@@ -157,6 +167,35 @@ def blink_alert(blink_rate):
     if blink_rate < BLINK_WARN_RATE:
         return f"Blink more! Only {blink_rate:.0f}/min", "warn"
     return None
+
+
+class GlareDetector:
+    """Spots reflections on glasses. Glare makes the eye landmarks jump about,
+    so over the last ~2 seconds either the iris width keeps jumping, or the
+    eye seems to open and close far faster than anyone blinks."""
+
+    def __init__(self):
+        self.frames = deque()            # (time, iris jumped?, eye state flipped?)
+        self.last_iris = self.last_closed = None
+
+    def reset(self):
+        """Call when the face is lost, so the next frame is not compared with it."""
+        self.last_iris = self.last_closed = None
+
+    def update(self, iris_px, ear, ear_threshold, now):
+        """Call once per frame with a face in view. Returns True while it looks like glare."""
+        jumped = (self.last_iris is not None and self.last_iris > 0
+                  and abs(iris_px - self.last_iris) / self.last_iris > GLARE_IRIS_JUMP)
+        closed = ear < ear_threshold
+        flipped = self.last_closed is not None and closed != self.last_closed
+        self.last_iris, self.last_closed = iris_px, closed
+        self.frames.append((now, jumped, flipped))
+        while self.frames and now - self.frames[0][0] > GLARE_SECONDS:
+            self.frames.popleft()
+        if len(self.frames) < GLARE_MIN_FRAMES:
+            return False
+        return (sum(f[1] for f in self.frames) >= GLARE_IRIS_JUMPS
+                or sum(f[2] for f in self.frames) >= GLARE_EAR_FLIPS)
 
 
 class BreakTimer:
@@ -226,7 +265,12 @@ def beep(freq=1000, ms=300):
 
 # ------------------------------------------------------------- drawing
 def put(img, text, pos, color=(255, 255, 255), scale=0.6, thick=2):
-    cv2.putText(img, text, pos, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thick + 2)
+    # Black edge first, then the text. The edge is the same text moved one pixel
+    # each way: drawing it with a thicker stroke makes it wider than the text
+    # in newer OpenCV versions, so the two no longer line up.
+    x, y = pos
+    for dx, dy in ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)):
+        cv2.putText(img, text, (x + dx, y + dy), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thick)
     cv2.putText(img, text, pos, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
 
 
@@ -316,6 +360,18 @@ def main():
     profile_lines = ((profiles.to_ascii(profile["name"]) or "Profile", profiles.describe(profile))
                      if profile else ())            # the video font only has plain letters
 
+    # what the profile changes (with no profile these keep their usual values)
+    safe_cm = profile["safe_distance_cm"] if profile else MIN_SAFE_DISTANCE_CM
+    lens_m = profiles.distance_factor(profile)      # glasses make the iris look bigger/smaller
+    glare = GlareDetector() if profile and profile["correction"] == "glasses" else None
+    if profiles.is_calibrated(profile):
+        print(f"Using the calibration saved on {profile['calibrated_on']} "
+              f"(focal = {profile['focal_px']:.0f} px).")
+    for note in (profiles.estimate_note(profile), profiles.calibration_note(profile),
+                 profiles.high_power_note(profile)):
+        if note:
+            print(note)
+
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
         print("Could not open webcam. Try --camera 1")
@@ -331,7 +387,8 @@ def main():
                   "strain_score", "alert"])
 
     # state
-    focal_px = None                     # set from frame width, or by calibration
+    focal_px = profile["focal_px"] if profiles.is_calibrated(profile) else None
+                                        # else set from frame width, or by calibration
     calib_ears = []                     # first few seconds -> personal EAR threshold
     ear_threshold = 0.21
     closed_frames, closed_since = 0, None
@@ -347,6 +404,9 @@ def main():
     ear = 0.0
     looking_away = False
     sound_on = not args.mute            # m key toggles this
+    notices = []                        # (text, show until this time) small lines on the video
+    if profiles.high_power_note(profile):               # once per session, first 10 seconds
+        notices.append((profiles.high_power_note(profile), session_start + 10))
 
     def sound(short=False):
         if sound_on:
@@ -381,7 +441,8 @@ def main():
             ear = (eye_aspect_ratio(pts, LEFT_EYE) + eye_aspect_ratio(pts, RIGHT_EYE)) / 2
             yaw, roll = head_pose(pts)
             looking_away = abs(yaw) > 0.25
-            dist = distance_cm(iris_width_px(pts), focal_px)
+            iris_px = iris_width_px(pts)
+            dist = distance_cm(iris_px, focal_px) * lens_m
 
             # personal threshold: 75% of your normal open-eye EAR (first ~3 s)
             if len(calib_ears) < 90:
@@ -403,11 +464,15 @@ def main():
                     drowsy_events += 1
                 closed_frames, closed_since = 0, None
 
+            glare_now = bool(glare) and glare.update(iris_px, ear, ear_threshold, now)
             for idx in LEFT_EYE + RIGHT_EYE:
                 cv2.circle(frame, tuple(int(v) for v in pts[idx]), 1, (0, 255, 255), -1)
         else:
             looking_away = True
             yaw, roll = 0.0, 0.0
+            glare_now = False
+            if glare:
+                glare.reset()
 
         while blink_times and now - blink_times[0] > 60:
             blink_times.popleft()
@@ -434,16 +499,18 @@ def main():
             low_blink = blink_alert(blink_rate) if elapsed > 30 else None
             if low_blink:
                 alert("blink_" + low_blink[1], *low_blink)
-            if 0 < dist < MIN_SAFE_DISTANCE_CM:
+            if 0 < dist < safe_cm:
                 alert("dist", f"Too close! {dist:.0f} cm - move back")
             if abs(roll) > HEAD_TILT_DEG:
                 alert("posture", "Straighten your head / posture")
+            if glare_now:                 # readings are unreliable while there is glare
+                alert("glare", GLARE_MESSAGE, "warn")
         if brightness < DARK_BRIGHTNESS:
             alert("dark", "Room too dark - turn on a light")
 
         score = strain_score(blink_rate, dist if face else 0,
                              min(since_break, break_every_s) / 60,
-                             drowsy_events, break_every_s / 60)
+                             drowsy_events, break_every_s / 60, safe_cm)
 
         # ---------------- HUD
         panel = frame.copy()
@@ -456,7 +523,7 @@ def main():
             (10, 60), blink_color(blink_rate))
         put(frame, f"Total blinks: {blinks_total}", (10, 85))
         put(frame, f"Distance: {dist:4.0f} cm" if face else "Distance: --",
-            (10, 110), level_color(dist >= MIN_SAFE_DISTANCE_CM))
+            (10, 110), level_color(dist >= safe_cm))
         mins_left = max(0, break_every_s - since_break) / 60
         put(frame, f"Next break: {mins_left:4.1f} min", (10, 135))
         put(frame, f"Strain score: {score}/100", (10, 160), level_color(score < 50))
@@ -470,10 +537,26 @@ def main():
 
         if on_break:
             frame = draw_break_screen(frame, break_timer)
-        elif current_alert:
+        else:
+            # small lines above the alert bar: notices, then calibration help
+            lines = [text for text, until in notices if now < until]
+            lines += [note for note in (profiles.estimate_note(profile),
+                                        profiles.calibration_note(profile)) if note]
+            if lines:                     # on a dark strip so they stay readable
+                top = h - 76 - 18 * len(lines)
+                strip = frame.copy()
+                cv2.rectangle(strip, (0, top), (w, h - 72), (30, 30, 30), -1)
+                frame = cv2.addWeighted(strip, 0.6, frame, 0.4, 0)
+            for row, text in enumerate(reversed(lines)):
+                put_centred(frame, profiles.to_ascii(text), h - 80 - 18 * row,
+                            (255, 255, 255), 0.5, 1)
+        if current_alert and not on_break:
             cv2.rectangle(frame, (0, h - 70), (w, h - 28),
                           AMBER if alert_level == "warn" else ALERT_RED, -1)
-            put(frame, current_alert, (15, h - 40), (255, 255, 255), 0.8)
+            if cv2.getTextSize(current_alert, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0][0] <= w - 30:
+                put(frame, current_alert, (15, h - 40), (255, 255, 255), 0.8)
+            else:                         # a long message is shrunk to fit
+                put_centred(frame, current_alert, h - 40, (255, 255, 255))
 
         cv2.imshow("EyeGuard - Eye Strain Monitor", frame)
 
@@ -491,7 +574,16 @@ def main():
             break
         if key == ord("c") and face:
             focal_px = iris_width_px(pts) * MIN_SAFE_DISTANCE_CM / IRIS_DIAMETER_CM
+            lens_m = 1.0                  # calibrating with your glasses on includes the lens
             print(f"Calibrated at {MIN_SAFE_DISTANCE_CM} cm (focal = {focal_px:.0f} px)")
+            if profile:
+                try:
+                    profile = profiles.save_calibration(profile, focal_px)
+                    print(f"Calibration saved to profile {profile['name']}.")
+                    notices.append((f"Calibrated at {MIN_SAFE_DISTANCE_CM} cm and saved to "
+                                    "your profile", now + 5))
+                except (OSError, ValueError) as err:
+                    print(f"Calibration not saved: {err}")
         if key == ord("b"):
             on_break = True
             break_timer.reset()
