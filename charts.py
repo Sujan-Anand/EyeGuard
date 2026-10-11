@@ -3,18 +3,21 @@
 import plotly.graph_objects as go
 
 import sessions
+import ui
 
-# One data colour for every chart (each chart shows a single measure).
-# Red and green are kept for "alert" and "healthy" markers only.
-SERIES = "#2a78d6"
-SERIES_LIGHT = "#b7d3f6"
-ALERT = "#d03b3b"
-HEALTHY = "#0ca30c"
-BREAK = "#898781"
-INK = "#12343B"
-MUTED = "#5f7a7f"
-GRID = "#e1e8e8"
-AXIS = "#b9c9c9"
+# Dark charts in the site's colours. One data colour (teal) for every chart,
+# since each chart shows a single measure. Amber, red and green are kept for
+# the "warning", "alert" and "healthy" markers only.
+SERIES = ui.TEAL
+SERIES_LIGHT = "#2F7F78"             # the faint per-second line
+WARNING = ui.AMBER
+ALERT = ui.ALERT
+HEALTHY = ui.GOOD
+BREAK = ui.MUTED
+INK = ui.INK
+MUTED = ui.MUTED
+GRID = ui.BORDER
+AXIS = ui.BORDER
 
 CONFIG = {"displayModeBar": False}       # hide the plotly toolbar (cleaner on a phone)
 
@@ -23,21 +26,25 @@ def style(fig, title, x_title, y_title, height=360):
     fig.update_layout(
         title=dict(text=title, font=dict(size=19, color=INK), x=0, xanchor="left"),
         height=height, margin=dict(l=10, r=20, t=70, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",     # the page shows through
         font=dict(color=INK, size=14),
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1),
-        hoverlabel=dict(font_size=14),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1,
+                    font=dict(color=INK)),
+        hoverlabel=dict(font_size=14, bgcolor=ui.SURFACE, bordercolor=ui.BORDER,
+                        font_color=INK),
     )
     fig.update_xaxes(title_text=x_title, showgrid=False, zeroline=False,
-                     linecolor=AXIS, tickfont=dict(color=MUTED))
+                     linecolor=AXIS, tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
     fig.update_yaxes(title_text=y_title, gridcolor=GRID, zeroline=False,
-                     linecolor=AXIS, tickfont=dict(color=MUTED))
+                     linecolor=AXIS, tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
     return fig
 
 
 def add_limits(fig, limits=(), band=None):
-    """Dashed red limit lines and an optional green healthy band.
-    limits is a list of (value, text); band is (low, high, text).
+    """Dashed limit lines and an optional green healthy band.
+    limits is a list of (value, text) for a red alert line, or
+    (value, text, "warn") for an amber warning line; band is (low, high, text).
     Use "" as the text to draw the line or band without a label."""
     def label(text, position, colour):
         # plotly writes "new text" if it gets a label position without a text
@@ -48,18 +55,19 @@ def add_limits(fig, limits=(), band=None):
 
     if band:
         low, high, text = band
-        fig.add_hrect(y0=low, y1=high, fillcolor=HEALTHY, opacity=0.12, line_width=0,
-                      layer="below", **label(text, "top left", MUTED))
-    for value, text in limits:
-        fig.add_hline(y=value, line=dict(color=ALERT, width=1.5, dash="dash"),
-                      **label(text, "bottom right", ALERT))
+        fig.add_hrect(y0=low, y1=high, fillcolor=HEALTHY, opacity=0.16, line_width=0,
+                      layer="below", **label(text, "top left", HEALTHY))
+    for value, text, *level in limits:
+        colour = WARNING if level == ["warn"] else ALERT
+        fig.add_hline(y=value, line=dict(color=colour, width=2, dash="dash"),
+                      **label(text, "bottom right", colour))
 
 
 def label_point(fig, x, y, text):
-    """Small text label just above one data point (on a white patch so it
+    """Small text label just above one data point (on a dark patch so it
     stays readable where it crosses a line)."""
     fig.add_annotation(x=x, y=y, text=text, showarrow=False, yshift=15,
-                       font=dict(color=INK, size=13), bgcolor="rgba(255,255,255,0.85)")
+                       font=dict(color=INK, size=13), bgcolor="rgba(11,31,33,0.85)")
 
 
 def hour_label(hour):
@@ -97,7 +105,7 @@ def trend(table, column, title, y_title, limits=(), y_range=None):
     fig = go.Figure(go.Scatter(
         x=number, y=table[column], mode="lines+markers",
         line=dict(color=SERIES, width=2),
-        marker=dict(size=10, color=SERIES, line=dict(color="#ffffff", width=2)),
+        marker=dict(size=10, color=SERIES, line=dict(color=ui.BACKGROUND, width=2)),
         customdata=when,
         hovertemplate="<b>%{customdata}</b><br>%{y:.0f}<extra></extra>"))
     add_limits(fig, limits)
@@ -133,11 +141,11 @@ def timeline(df, column, title, y_title, limits=(), band=None, y_range=None, fil
     fig.add_trace(go.Scatter(
         x=t, y=smooth, name="30-s average", mode="lines",
         line=dict(color=SERIES, width=2), hovertemplate="%{y:.1f}",
-        fill="tozeroy" if fill else None, fillcolor="rgba(42,120,214,0.15)"))
+        fill="tozeroy" if fill else None, fillcolor="rgba(79,179,169,0.18)"))
 
     add_limits(fig, limits, band)
     for start, end in sessions.break_periods(df):
-        fig.add_vrect(x0=start, x1=max(end, start + 0.05), fillcolor=BREAK, opacity=0.15,
+        fig.add_vrect(x0=start, x1=max(end, start + 0.05), fillcolor=BREAK, opacity=0.22,
                       line_width=0, layer="below", annotation_text="break",
                       annotation_position="top left",
                       annotation_font=dict(color=MUTED, size=11))

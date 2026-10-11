@@ -19,23 +19,26 @@ import html
 import streamlit as st
 
 # ------------------------------------------------------------------- colours
-DEEP_TEAL = "#0F3B3E"        # headings, sidebar, hero
-MID_TEAL = "#2C6E6A"         # buttons, links, accents
-LIGHT = "#F4F8F6"            # page background
-AMBER = "#F2A541"            # accent and warnings
-WHITE = "#FFFFFF"            # cards
-BORDER = "#D5E3DE"           # light card border
-INK = "#0F3B3E"              # body text
-MUTED = "#4A6663"            # secondary text
+# Dark theme. The same values are in .streamlit/config.toml.
+BACKGROUND = "#0B1F21"       # page
+SURFACE = "#12302F"          # cards, sidebar
+BORDER = "#1F4A48"           # card borders, chart gridlines
+INK = "#E8F1EF"              # main text
+MUTED = "#A9C4C0"            # secondary text
+AMBER = "#F2A541"            # accent: buttons, highlights, current page; also warnings
+TEAL = "#4FB3A9"             # charts, links, icons
+ALERT = "#F26B5B"            # strong alerts only
+GOOD = "#5CC08A"
+ON_AMBER = "#0B1F21"         # text on an amber button
 
-# Each status: (background, text, icon, default word). Text on its background
-# is at least 4.5:1 (checked in tests/test_ui.py).
+# Each status: (background, text, icon, default word, accent). Text on its
+# background is at least 4.5:1 (checked in tests/test_ui.py).
 STATUS = {
-    "good":    ("#E2F3E8", "#17603A", "check_circle", "Good"),
-    "warn":    ("#FDEFD3", "#7A4A00", "warning", "Warning"),
-    "alert":   ("#FBE3E1", "#9B1C13", "error", "Alert"),
-    "info":    ("#E1EFEE", "#1F5753", "info", "Info"),
-    "neutral": ("#E9EFED", "#3F5A57", "radio_button_unchecked", ""),
+    "good":    ("#143A2A", "#8FDDB0", "check_circle", "Good", GOOD),
+    "warn":    ("#3D2E12", "#F7C47A", "warning", "Warning", AMBER),
+    "alert":   ("#40201D", "#FFA599", "error", "Alert", ALERT),
+    "info":    ("#173B3A", "#9ADAD2", "info", "Info", TEAL),
+    "neutral": ("#1B3B3A", "#C2D6D3", "radio_button_unchecked", "", MUTED),
 }
 
 HEADING_FONT = "'Rubik', 'Segoe UI', Arial, sans-serif"
@@ -51,7 +54,7 @@ CSS = f"""
 <style>
 .eg-header {{ margin: 0 0 {SPACE['lg']}rem 0; }}
 .eg-header h1 {{
-    font-family: {HEADING_FONT}; font-weight: 700; color: {DEEP_TEAL};
+    font-family: {HEADING_FONT}; font-weight: 700; color: {INK};
     font-size: clamp(1.7rem, 4.5vw, {TYPE['h1']}rem); line-height: 1.15;
     margin: 0; padding: 0; display: flex; align-items: center; gap: {SPACE['sm']}rem;
 }}
@@ -62,16 +65,16 @@ CSS = f"""
             display: inline-block; vertical-align: middle; }}
 
 .eg-card {{
-    background: {WHITE}; border: 1px solid {BORDER}; border-radius: {RADIUS};
+    background: {SURFACE}; border: 1px solid {BORDER}; border-radius: {RADIUS};
     padding: {SPACE['md']}rem {SPACE['lg']}rem; color: {INK};
-    box-shadow: 0 1px 2px rgba(15, 59, 62, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }}
 .eg-row {{ display: grid; gap: {SPACE['md']}rem; margin-bottom: {SPACE['md']}rem;
            grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); }}
 
 .eg-kpi .eg-label {{ color: {MUTED}; font-size: {TYPE['small']}rem; font-weight: 600;
                      letter-spacing: 0.02em; }}
-.eg-kpi .eg-value {{ font-family: {HEADING_FONT}; font-weight: 700; color: {DEEP_TEAL};
+.eg-kpi .eg-value {{ font-family: {HEADING_FONT}; font-weight: 700; color: {INK};
                      font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.2;
                      margin: {SPACE['xs']}rem 0 {SPACE['sm']}rem 0; overflow-wrap: anywhere; }}
 .eg-kpi .eg-unit {{ font-family: {BODY_FONT}; font-weight: 600; font-size: 1rem; color: {MUTED};
@@ -88,7 +91,7 @@ CSS = f"""
 .eg-tip .eg-badge {{ flex: 0 0 auto; width: 2.6rem; height: 2.6rem; border-radius: 50%;
                      display: flex; align-items: center; justify-content: center;
                      font-size: 1.5rem; }}
-.eg-tip .eg-title {{ font-family: {HEADING_FONT}; font-weight: 600; color: {DEEP_TEAL};
+.eg-tip .eg-title {{ font-family: {HEADING_FONT}; font-weight: 600; color: {INK};
                      margin-bottom: 0.15rem; }}
 
 .eg-alert {{ display: flex; gap: {SPACE['md']}rem; align-items: flex-start;
@@ -97,6 +100,12 @@ CSS = f"""
 .eg-alert .eg-icon {{ font-size: 1.6rem; }}
 .eg-alert .eg-title {{ font-family: {HEADING_FONT}; font-weight: 700; margin-bottom: 0.1rem; }}
 .eg-alert.eg-big {{ font-size: 1.15rem; padding: {SPACE['lg']}rem; }}
+
+/* Streamlit draws white text on the accent colour; amber needs dark text. */
+[data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] p,
+[data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] p {{
+    color: {ON_AMBER} !important; font-weight: 700;
+}}
 </style>
 """
 
@@ -126,7 +135,7 @@ def page_header(title, description, icon=None):
 
 def pill_html(text, kind="neutral"):
     """The HTML for a status pill, for use inside other blocks."""
-    background, colour, icon, _ = STATUS.get(kind, STATUS["neutral"])
+    background, colour, icon = STATUS.get(kind, STATUS["neutral"])[:3]
     return (f'<span class="eg-pill" style="background:{background};color:{colour}">'
             f'{_icon(icon)}{_text(text)}</span>')
 
@@ -146,7 +155,7 @@ def kpi_html(label, value, unit="", status=None, kind="neutral", note=None):
 
 
 def kpi_card(label, value, unit="", status=None, kind="neutral", note=None):
-    """One number in a white card: label, value with its unit, a status in
+    """One number in a card: label, value with its unit, a status in
     words (optional) and a short note (optional)."""
     st.html(kpi_html(label, value, unit, status, kind, note))
 
@@ -159,7 +168,7 @@ def kpi_row(cards):
 
 def tip_card(text, icon="lightbulb", title=None, kind="info"):
     """One piece of advice: a round icon badge, an optional title and the text."""
-    background, colour, _, _ = STATUS.get(kind, STATUS["info"])
+    background, colour = STATUS.get(kind, STATUS["info"])[:2]
     title_html = f'<div class="eg-title">{_text(title)}</div>' if title else ""
     st.html(f'<div class="eg-card eg-tip"><div class="eg-badge" '
             f'style="background:{background};color:{colour}">{_icon(icon)}</div>'
@@ -170,10 +179,10 @@ def alert_box(text, kind="warn", title=None, big=False):
     """A message box. kind is "info", "good", "warn" (amber) or "alert" (red,
     for strong alerts only). The title defaults to the status word, so the
     meaning never depends on colour."""
-    background, colour, icon, word = STATUS.get(kind, STATUS["info"])
+    background, colour, icon, word, accent = STATUS.get(kind, STATUS["info"])
     heading = title if title is not None else word
     title_html = f'<div class="eg-title">{_text(heading)}</div>' if heading else ""
     role = "alert" if kind == "alert" else "status"
     st.html(f'<div class="eg-alert{" eg-big" if big else ""}" role="{role}" '
-            f'style="background:{background};color:{colour};border-color:{colour}">'
+            f'style="background:{background};color:{colour};border-color:{accent}">'
             f'{_icon(icon)}<div>{title_html}<div>{_text(text)}</div></div></div>')

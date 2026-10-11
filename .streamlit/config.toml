@@ -1,16 +1,23 @@
-# EyeGuard look, matching the slide deck:
-# deep teal #0F3B3E, mid teal #2C6E6A, light #F4F8F6, amber accent #F2A541.
+# EyeGuard look: a dark theme in our teal and amber.
+#   page #0B1F21 · cards and sidebar #12302F · border #1F4A48
+#   text #E8F1EF · muted text #A9C4C0 · amber accent #F2A541 · teal #4FB3A9
+#   warning #F2A541 · strong alert #F26B5B · good #5CC08A
 # Headings in Rubik, body text in Nunito Sans (loaded from Google Fonts;
 # the browser falls back to its own sans-serif font if they cannot load).
+# The same colours are in ui.py for the custom blocks and the charts.
 
 [theme]
-base = "light"
-primaryColor = "#2C6E6A"
-backgroundColor = "#F4F8F6"
-secondaryBackgroundColor = "#E4EEEA"
-textColor = "#0F3B3E"
-linkColor = "#2C6E6A"
-borderColor = "#D5E3DE"
+base = "dark"
+primaryColor = "#F2A541"
+backgroundColor = "#0B1F21"
+secondaryBackgroundColor = "#12302F"
+textColor = "#E8F1EF"
+linkColor = "#4FB3A9"
+borderColor = "#1F4A48"
+codeBackgroundColor = "#12302F"
+dataframeBorderColor = "#1F4A48"
+dataframeHeaderBackgroundColor = "#12302F"
+dataframeHeaderTextColor = "#E8F1EF"
 
 font = "'Nunito Sans':https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap"
 headingFont = "Rubik:https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&display=swap"
@@ -18,13 +25,23 @@ baseFontSize = 17
 headingFontSizes = ["2.1rem", "1.5rem", "1.2rem", "1.05rem", "1rem", "0.9rem"]
 headingFontWeights = [700, 600, 600, 600, 600, 600]
 baseRadius = "large"
+showWidgetBorder = true
 
-# status colours (also used by st.success / st.warning / st.error)
-greenColor = "#17603A"
-orangeColor = "#B06A00"
+# status colours (used by st.success / st.warning / st.error and metric labels)
+greenColor = "#5CC08A"
+orangeColor = "#F2A541"
 yellowColor = "#F2A541"
-redColor = "#9B1C13"
-blueColor = "#2C6E6A"
+redColor = "#F26B5B"
+blueColor = "#4FB3A9"
+grayColor = "#A9C4C0"
+
+chartCategoricalColors = ["#4FB3A9", "#F2A541", "#5CC08A", "#F26B5B", "#A9C4C0"]
+
+[theme.sidebar]
+backgroundColor = "#12302F"
+secondaryBackgroundColor = "#1F4A48"
+textColor = "#E8F1EF"
+borderColor = "#1F4A48"
 
 [browser]
 gatherUsageStats = false

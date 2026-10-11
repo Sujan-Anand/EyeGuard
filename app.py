@@ -17,16 +17,16 @@ ui.apply_theme()                     # shared colours, type and card styles (ui.
 st.markdown("""
 <style>
 .hero {
-    background: linear-gradient(135deg, #0F3B3E 0%, #2C6E6A 100%);
-    color: white; border-radius: 18px;
+    background: linear-gradient(135deg, #12302F 0%, #1F4A48 100%);
+    border: 1px solid #1F4A48; color: #E8F1EF; border-radius: 18px;
     padding: clamp(1.2rem, 4vw, 2.8rem); margin-bottom: 1.2rem;
 }
 .hero-name  { font-size: clamp(2.2rem, 6vw, 3.8rem); font-weight: 800; line-height: 1.1; }
 .hero-pitch { font-size: clamp(1.05rem, 2.2vw, 1.45rem); margin-top: 0.6rem; }
-.hero-tag   { font-size: 0.9rem; opacity: 0.9; margin-top: 0.9rem; }
+.hero-tag   { font-size: 0.9rem; color: #F2A541; font-weight: 700; margin-top: 0.9rem; }
 .step-num {
     width: 2.4rem; height: 2.4rem; border-radius: 50%;
-    background: #2C6E6A; color: white; font-weight: 700; font-size: 1.2rem;
+    background: #F2A541; color: #0B1F21; font-weight: 700; font-size: 1.2rem;
     display: flex; align-items: center; justify-content: center;
 }
 </style>

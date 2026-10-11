@@ -43,31 +43,72 @@ def showcase():
 
 
 class ContrastTest(unittest.TestCase):
-    def test_palette_matches_the_slide_deck(self):
-        self.assertEqual((ui.DEEP_TEAL, ui.LIGHT, ui.AMBER, ui.MID_TEAL),
-                         ("#0F3B3E", "#F4F8F6", "#F2A541", "#2C6E6A"))
+    def test_the_dark_palette(self):
+        self.assertEqual((ui.BACKGROUND, ui.SURFACE, ui.BORDER, ui.INK, ui.MUTED),
+                         ("#0B1F21", "#12302F", "#1F4A48", "#E8F1EF", "#A9C4C0"))
+        self.assertEqual((ui.AMBER, ui.TEAL, ui.ALERT, ui.GOOD),
+                         ("#F2A541", "#4FB3A9", "#F26B5B", "#5CC08A"))
 
     def test_text_is_readable_on_every_surface(self):
-        pairs = {"body text on page": (ui.INK, ui.LIGHT), "body text on card": (ui.INK, ui.WHITE),
-                 "secondary text on page": (ui.MUTED, ui.LIGHT),
-                 "secondary text on card": (ui.MUTED, ui.WHITE),
-                 "white on button": (ui.WHITE, ui.MID_TEAL), "white on deep teal": (ui.WHITE, ui.DEEP_TEAL),
-                 "deep teal on amber": (ui.DEEP_TEAL, ui.AMBER)}
+        pairs = {"text on page": (ui.INK, ui.BACKGROUND), "text on card": (ui.INK, ui.SURFACE),
+                 "muted text on page": (ui.MUTED, ui.BACKGROUND),
+                 "muted text on card": (ui.MUTED, ui.SURFACE),
+                 "dark text on amber button": (ui.ON_AMBER, ui.AMBER),
+                 "teal links on page": (ui.TEAL, ui.BACKGROUND), "teal on card": (ui.TEAL, ui.SURFACE),
+                 "amber on page": (ui.AMBER, ui.BACKGROUND), "amber on card": (ui.AMBER, ui.SURFACE),
+                 "alert red on page": (ui.ALERT, ui.BACKGROUND), "alert red on card": (ui.ALERT, ui.SURFACE),
+                 "good green on card": (ui.GOOD, ui.SURFACE)}
         for name, (text, background) in pairs.items():
             self.assertGreaterEqual(contrast(text, background), 4.5, name)
 
+    def test_nothing_is_left_light(self):
+        for name in ("BACKGROUND", "SURFACE", "BORDER"):
+            self.assertLess(contrast(getattr(ui, name), "#000000"), 3.0, name)      # dark surfaces
+        for kind, status in ui.STATUS.items():
+            self.assertLess(contrast(status[0], "#000000"), 3.0, kind)              # dark pill and alert backgrounds
+        self.assertNotIn("#fff", ui.CSS.lower())
+        self.assertNotIn("white;", ui.CSS.lower())
+
     def test_every_status_colour_pair_is_readable(self):
-        for kind, (background, text, icon, word) in ui.STATUS.items():
+        for kind, (background, text, icon, word, accent) in ui.STATUS.items():
             self.assertGreaterEqual(contrast(text, background), 4.5, kind)
             self.assertTrue(icon, kind)                          # an icon as well as a colour
+        self.assertEqual(ui.STATUS["warn"][4], ui.AMBER)         # amber for warnings
+        self.assertEqual(ui.STATUS["alert"][4], ui.ALERT)        # red for strong alerts only
 
     def test_the_theme_file_uses_the_same_colours_and_fonts(self):
         path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             ".streamlit", "config.toml")
         config = open(path, encoding="utf-8").read()
-        for needed in ('primaryColor = "#2C6E6A"', 'backgroundColor = "#F4F8F6"',
-                       'textColor = "#0F3B3E"', "Nunito+Sans", "family=Rubik"):
+        for needed in ('base = "dark"', f'primaryColor = "{ui.AMBER}"',
+                       f'backgroundColor = "{ui.BACKGROUND}"',
+                       f'secondaryBackgroundColor = "{ui.SURFACE}"', f'textColor = "{ui.INK}"',
+                       "Nunito+Sans", "family=Rubik"):
             self.assertIn(needed, config)
+
+    def test_charts_are_dark_with_the_site_colours(self):
+        import pandas as pd
+        import charts
+        import sample_data
+        import sessions
+        df = sessions.clean(sample_data.make_session(minutes=25))
+        fig = charts.timeline(df, "blink_rate", "T", "Y", band=(15, 20, "Healthy"),
+                              limits=[(7, "Warning", "warn"), (5, "Strong alert")])
+        layout = fig.layout
+        self.assertEqual(layout.paper_bgcolor, "rgba(0,0,0,0)")          # transparent
+        self.assertEqual(layout.plot_bgcolor, "rgba(0,0,0,0)")
+        self.assertEqual(layout.font.color, ui.INK)                      # light text
+        self.assertEqual(layout.yaxis.gridcolor, ui.BORDER)              # gridlines #1F4A48
+        self.assertEqual(fig.data[1].line.color, ui.TEAL)                # teal series
+        lines = {shape.y0: shape.line.color for shape in layout.shapes if shape.type == "line"}
+        self.assertEqual(lines, {7: ui.AMBER, 5: ui.ALERT})              # amber warning, red alert
+        self.assertTrue(any(shape.type == "rect" and shape.x0 != shape.x1 and shape.fillcolor == ui.MUTED
+                            for shape in layout.shapes))                 # shaded breaks
+        labels = [a.text for a in layout.annotations]
+        for text in ("Healthy", "Warning", "Strong alert", "break"):
+            self.assertIn(text, labels)                                  # labelled in words
+        for colour in (ui.TEAL, ui.AMBER, ui.ALERT, ui.GOOD, ui.MUTED, ui.INK):
+            self.assertGreaterEqual(contrast(colour, ui.BACKGROUND), 4.5, colour)
 
 
 class BlocksTest(unittest.TestCase):
@@ -111,8 +152,8 @@ class BlocksTest(unittest.TestCase):
         self.assertIn(">Alert<", strong)
         self.assertIn('role="status"', warning)
         self.assertIn('role="alert"', strong)                   # only the strong one interrupts
-        self.assertIn(ui.STATUS["warn"][0], warning)            # amber for warnings
-        self.assertIn(ui.STATUS["alert"][0], strong)            # red for strong alerts only
+        self.assertIn("border-color:" + ui.AMBER, warning)      # amber for warnings
+        self.assertIn("border-color:" + ui.ALERT, strong)       # red for strong alerts only
         self.assertIn("eg-big", strong)
 
     def test_tip_card(self):

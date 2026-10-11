@@ -101,10 +101,10 @@ with st.container(horizontal=True):
 # --------------------------------------------------------------------- charts
 st.subheader("Over time")
 st.caption("Bold line = 30-second rolling average. Grey bars = break periods. "
-           "Dashed red lines = limits.")
+           "Dashed lines = limits (amber = warning, red = alert).")
 st.plotly_chart(
     charts.timeline(df, "blink_rate", "Blink rate", "Blinks per minute",
-                    limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min"),
+                    limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min", "warn"),
                             (BLINK_ALERT_RATE, f"Strong alert below {BLINK_ALERT_RATE}/min")],
                     band=(15, 20, "Healthy 15-20/min")),
     config=charts.CONFIG, alt="Blink rate over the session")

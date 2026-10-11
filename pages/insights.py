@@ -106,11 +106,11 @@ else:
     st.plotly_chart(
         charts.hourly(hours, "blink_rate", "Blink rate by hour of the day",
                       "Blinks per minute", "blinks/min",
-                      limits=[(BLINK_WARN_RATE, ""), (BLINK_ALERT_RATE, "")],
+                      limits=[(BLINK_WARN_RATE, "", "warn"), (BLINK_ALERT_RATE, "")],
                       band=(15, 20, "")),
         config=charts.CONFIG, alt="Average blink rate for each hour of the day")
-    st.caption(f"Green band = healthy 15-20 blinks/min. Dashed red lines = warning "
-               f"({BLINK_WARN_RATE}/min) and strong alert ({BLINK_ALERT_RATE}/min). "
+    st.caption(f"Green band = healthy 15-20 blinks/min. Dashed lines = warning "
+               f"({BLINK_WARN_RATE}/min, amber) and strong alert ({BLINK_ALERT_RATE}/min, red). "
                "Hours with under "
                f"{sessions.MIN_HOUR_MINUTES} minutes of data are not shown.")
 
