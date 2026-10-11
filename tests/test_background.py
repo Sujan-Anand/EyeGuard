@@ -79,6 +79,28 @@ class MessagesTest(unittest.TestCase):
                                   (4.9, "Blinks/min: 4.9  very low", "alert")]:
             self.assertEqual(self.lines(blink_rate=rate)[0], (text, level))
 
+    def test_notification_text_is_safe_for_windows(self):
+        self.assertEqual(background.toast_text("Break done ✓"), "Break done ✓")
+        self.assertEqual(background.toast_text("R&D <b> 5 > 3"), "R&D <b> 5 > 3")    # shown as typed
+        self.assertEqual(background.toast_text("cost $HOME `whoami`"), "cost `$HOME 'whoami'")
+        self.assertEqual(background.toast_text('say "hi" ]]>'), "say 'hi' ]] >")
+        sent = []
+
+        class Toast:
+            def __init__(self, **kwargs):
+                sent.append(kwargs)
+
+            def show(self):
+                pass
+
+        notifier = background.Notifier()
+        notifier._toast = Toast
+        notifier.show("Too close! 41 cm - move back")
+        notifier.show(background.PAUSED_MESSAGE, background.PAUSED_TITLE)
+        self.assertEqual([(s["app_id"], s["title"], s["msg"], s["duration"]) for s in sent],
+                         [("EyeGuard", "EyeGuard", "Too close! 41 cm - move back", "short"),
+                          ("EyeGuard", "EyeGuard paused", background.PAUSED_MESSAGE, "short")])
+
     def test_notifier_never_stops_the_app(self):
         class Broken:
             def __init__(self, **kwargs):

@@ -12,7 +12,6 @@ imports eyeguard.py on a Linux server) never needs them.
 """
 
 import sys
-from xml.sax.saxutils import escape
 
 APP_NAME = "EyeGuard"
 MINI_WIDTH, MINI_HEIGHT = 220, 120
@@ -71,6 +70,12 @@ def mini_lines(blink_rate, measuring, dist, face, score, on_break, break_done, b
 
 
 # ---------------------------------------------------------- notifications
+def toast_text(text):
+    """Text that is safe to hand to Windows: the pop-up is built by a small
+    PowerShell script, where $ and ` have a special meaning."""
+    return str(text).replace("`", "'").replace("$", "`$").replace("]]>", "]] >").replace('"', "'")
+
+
 class Notifier:
     """Shows Windows toast notifications. Every message is also printed, so
     nothing is lost if toasts are switched off or this is not Windows.
@@ -102,7 +107,7 @@ class Notifier:
         if self._toast is None:
             return
         try:
-            self._toast(app_id=APP_NAME, title=escape(title), msg=escape(message),
+            self._toast(app_id=APP_NAME, title=toast_text(title), msg=toast_text(message),
                         duration="short").show()
         except Exception as err:         # a failed pop-up must never stop the monitoring
             self._toast = None
@@ -134,15 +139,16 @@ class MiniWindow:
         top = tk.Frame(root, bg=BACKGROUND)
         top.pack(fill="x", padx=8, pady=(5, 1))
         title = tk.Label(top, text=APP_NAME, bg=BACKGROUND, fg=AMBER,
-                         font=("Segoe UI", 10, "bold"))
+                         font=("Segoe UI", -14, "bold"))
         title.pack(side="left")
         tk.Button(top, text="Stop", command=self.stop, bg=SURFACE, fg=INK,
                   activebackground=AMBER, activeforeground=BACKGROUND, relief="flat",
-                  font=("Segoe UI", 8, "bold"), padx=8, pady=0, cursor="hand2").pack(side="right")
+                  font=("Segoe UI", -11, "bold"), padx=8, pady=0, cursor="hand2").pack(side="right")
         self.labels = []
         for _ in range(4):
             label = tk.Label(root, text="", bg=BACKGROUND, fg=INK, anchor="w",
-                             font=("Segoe UI", 9))
+                             font=("Segoe UI", -12))     # sizes in pixels: the same
+                                                         # at any Windows display scale
             label.pack(fill="x", padx=8)
             self.labels.append(label)
 
