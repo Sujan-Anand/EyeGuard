@@ -89,6 +89,7 @@ class ValuesTest(unittest.TestCase):
         self.assertNotEqual(key("Sujan – glasses"), key("Sujan – contacts"))
         self.assertEqual(profiles.to_ascii("Sujan – glasses"), "Sujan - glasses")
         self.assertEqual(profiles.to_ascii("Renée"), "Renee")
+        self.assertEqual(profiles.to_ascii("சுஜன்"), "")              # nothing the video font can draw
 
 
 class FileTest(TempProfilesFile):
@@ -175,6 +176,15 @@ class QuestionnaireTest(TempProfilesFile):
         self.assertIn("Profile loaded - Sujan - glasses: glasses -7.00 D, safe distance 50 cm",
                       self.said)
 
+    def test_a_blank_name_is_refused_before_any_question(self):
+        def no_questions(question):
+            raise AssertionError("asked a question for a blank name")
+        for blank in ["   ", "	", ""]:
+            with self.assertRaises(ValueError) as caught:
+                profiles.load_or_create(blank, no_questions, self.say)
+            self.assertIn("needs a name", str(caught.exception))
+        self.assertEqual(profiles.load_all(), [])
+
     def test_creating_a_second_profile_lists_the_first(self):
         profiles.load_or_create("Sujan - glasses", answers("g", "-7", ""), self.say)
         profiles.load_or_create("Sujan - contacts", answers("c", "-6.5", ""), self.say)
@@ -228,6 +238,21 @@ class DesktopProfileTest(TempProfilesFile):
         line = next(t for t in all_text(r) if t.startswith("Padhmesh"))
         self.assertTrue(line.endswith("..."))
         self.assertLess(len(line), len(name))
+
+    def test_a_blank_name_runs_without_a_profile(self):
+        r = run_desktop(["--profile", "   "], frames=3, typed=["g", "-2", ""])
+        self.assertIn("Profile not used: the profile needs a name", r["printed"])
+        self.assertNotIn("New profile", r["printed"])                      # no questions asked
+        self.assertEqual(len(r["texts"]), 3)
+        self.assertFalse(os.path.exists(profiles.PROFILES_PATH))
+
+    def test_a_name_in_another_script_is_saved_and_the_panel_says_profile(self):
+        r = run_desktop(["--profile", "சுஜன்"], frames=3, typed=["c", "-1.5", ""])
+        saved = profiles.find("சுஜன்")
+        self.assertEqual((saved["name"], saved["correction"], saved["power"]),
+                         ("சுஜன்", "contacts", -1.5))
+        self.assertIn("Profile", all_text(r))                              # the font has no Tamil
+        self.assertIn("contacts -1.50 D", all_text(r))
 
     def test_a_damaged_file_does_not_stop_the_app(self):
         with open(profiles.PROFILES_PATH, "w", encoding="utf-8") as f:

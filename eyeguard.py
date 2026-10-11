@@ -299,6 +299,9 @@ def main():
                          'e.g. --profile "Sujan - glasses"')
     args = ap.parse_args()
     break_every_s = 60 if args.demo else 20 * 60
+    for stream in (sys.stdout, sys.stderr):      # a name the terminal cannot show
+        if hasattr(stream, "reconfigure"):       # prints as "?" instead of stopping
+            stream.reconfigure(errors="replace")
 
     profile = None                      # None = no profile: everything works as before
     if args.profile:
@@ -310,8 +313,8 @@ def main():
             print("\nCancelled.")
             return
     # two short lines beside the title: who is using it, and what they wear
-    profile_lines = ((profiles.to_ascii(profile["name"]), profiles.describe(profile))
-                     if profile else ())
+    profile_lines = ((profiles.to_ascii(profile["name"]) or "Profile", profiles.describe(profile))
+                     if profile else ())            # the video font only has plain letters
 
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():

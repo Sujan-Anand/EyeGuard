@@ -50,7 +50,7 @@ def to_ascii(text):
     for dash in DASHES:
         text = text.replace(dash, "-")
     plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
-    return plain.strip() or "?"
+    return " ".join(plain.split())           # "" if the name has no such letters at all
 
 
 def parse_power(text):
@@ -207,6 +207,9 @@ def questionnaire(name, ask=input, say=print):
 def load_or_create(name, ask=input, say=print, path=None):
     """The profile for --profile NAME: loads it if it is saved, otherwise asks
     the questions and saves it."""
+    name = " ".join(str(name).split())
+    if not name:                                 # say so before asking anything
+        raise ValueError('the profile needs a name, for example --profile "Sujan - glasses"')
     profile = find(name, path)
     if profile:
         say(f"Profile loaded - {summary(profile)}")
@@ -214,6 +217,6 @@ def load_or_create(name, ask=input, say=print, path=None):
     known = [p["name"] for p in load_all(path)]
     if known:
         say("Saved profiles: " + ", ".join(known))
-    profile = save(questionnaire(" ".join(str(name).split()), ask, say), path)
+    profile = save(questionnaire(name, ask, say), path)
     say(f"Profile saved - {summary(profile)}\n")
     return profile
