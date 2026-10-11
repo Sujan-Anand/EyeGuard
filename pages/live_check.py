@@ -23,6 +23,7 @@ STUN_SERVERS = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.c
 TURN_SECRET_KEYS = ("HF_TOKEN", "CLOUDFLARE_TURN_KEY_ID")
 SLOW_CONNECT_SECONDS = 15
 MIN_ROWS_TO_SAVE = 5
+HIGH_POWER_NOTE_SECONDS = 30
 
 st.title("Live Check")
 st.caption("Check your blink rate, screen distance and eye strain live, in the browser. "
@@ -80,9 +81,11 @@ if profile:
                f" · safe distance {profile['safe_distance_cm']} cm. "
                + ("Calibrated on " + profile["calibrated_on"] + "."
                   if profiles.is_calibrated(profile) else profiles.explain(profile)))
-    if profiles.high_power_note(profile) and not st.session_state.get("high_power_shown"):
-        st.session_state["high_power_shown"] = True          # once per session
-        st.info(profiles.high_power_note(profile), icon=":material/visibility:")
+    # once per session; kept on screen for a while because the page reruns as the video starts
+    if profiles.high_power_note(profile):
+        first_shown = st.session_state.setdefault("high_power_shown", time.time())
+        if time.time() - first_shown < HIGH_POWER_NOTE_SECONDS:
+            st.info(profiles.high_power_note(profile), icon=":material/visibility:")
 else:
     st.caption("Wear glasses or contact lenses? Set up **My Profile** so the distance "
                "is corrected for your lenses.")
