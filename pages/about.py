@@ -4,9 +4,9 @@ import streamlit as st
 
 import eyeguard as eg
 import profiles
+import ui
 
-st.title("About EyeGuard")
-st.caption("How it is built, the formulas behind it, and where it goes next.")
+ui.page_header("About EyeGuard", "How it is built, the formulas behind it, and where it goes next.")
 
 st.warning("**EyeGuard is an awareness tool, not a medical device.** It does not "
            "diagnose or treat any condition. See an eye doctor if you have ongoing "

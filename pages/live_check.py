@@ -14,6 +14,7 @@ import eyeguard as eg
 import live
 import profiles
 import sessions
+import ui
 
 # Public STUN servers let the browser and the server find a route to each other.
 STUN_SERVERS = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]
@@ -42,9 +43,7 @@ BEEP_SCRIPT = """<script>
 })();
 </script><!-- %s -->"""
 
-st.title("Live Check")
-st.caption("Check your blink rate, screen distance and eye strain live, in the browser. "
-           "Video is analysed frame by frame and never saved.")
+ui.page_header("Live Check", "Check your blinking, distance and eye strain live in the browser. Video is analysed frame by frame and never saved.")
 
 
 def rtc_configuration():

@@ -8,9 +8,9 @@ import streamlit as st
 import charts
 import sessions
 from report import BLINK_ALERT_RATE, BLINK_WARN_RATE, MIN_SAFE_DISTANCE_CM
+import ui
 
-st.title("Session dashboard")
-st.caption("Explore one EyeGuard session: blink rate, distance, breaks and strain score.")
+ui.page_header("Session dashboard", "One session at a glance: blinking, distance, breaks and strain.")
 
 
 def show(value, pattern):

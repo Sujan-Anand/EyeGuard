@@ -4,6 +4,10 @@ page uses, so the whole website looks like one product (and like our slides).
 
     apply_theme()    call once per page run (app.py does it)
     page_header()    page title + one-line description
+    sidebar_brand()  EyeGuard name and logo at the top of the sidebar
+    hero()           the big banner on the Home page
+    info_cards()     a row of cards with a number or icon, a title and a sentence
+    footer()         the small line at the bottom of a page
     kpi_card() / kpi_row()   a number with its unit and a status in words
     status_pill()    small coloured label, always with a word and an icon
     tip_card()       one piece of advice with an icon
@@ -53,13 +57,8 @@ RADIUS = "14px"
 
 CSS = f"""
 <style>
-.eg-header {{ margin: 0 0 {SPACE['lg']}rem 0; }}
-.eg-header h1 {{
-    font-family: {HEADING_FONT}; font-weight: 700; color: {INK};
-    font-size: clamp(1.7rem, 4.5vw, {TYPE['h1']}rem); line-height: 1.15;
-    margin: 0; padding: 0; display: flex; align-items: center; gap: {SPACE['sm']}rem;
-}}
-.eg-header p {{ color: {MUTED}; font-size: 1.05rem; margin: {SPACE['sm']}rem 0 0 0; max-width: 46rem; }}
+.eg-header {{ margin: -0.6rem 0 {SPACE['md']}rem 0; }}
+.eg-header p {{ color: {MUTED}; font-size: 1.05rem; margin: 0; max-width: 46rem; }}
 .eg-header .eg-rule {{ width: 3.5rem; height: 4px; border-radius: 2px; background: {AMBER};
                       margin-top: {SPACE['md']}rem; }}
 .eg-icon {{ font-family: {ICON_FONT}; font-weight: 400; font-style: normal; line-height: 1;
@@ -72,6 +71,42 @@ CSS = f"""
 }}
 .eg-row {{ display: grid; gap: {SPACE['md']}rem; margin-bottom: {SPACE['md']}rem;
            grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); }}
+
+.eg-row-wide {{ grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }}
+
+.eg-hero {{
+    background: linear-gradient(135deg, {SURFACE} 0%, {BORDER} 100%);
+    border: 1px solid {BORDER}; border-radius: 22px;
+    padding: clamp(1.4rem, 5vw, 3.2rem); margin-bottom: {SPACE['sm']}rem;
+}}
+.eg-hero h1 {{ font-family: {HEADING_FONT}; font-weight: 700; color: {INK}; margin: 0; padding: 0;
+               font-size: clamp(2rem, 6.5vw, 3.6rem); line-height: 1.08; letter-spacing: -0.01em; }}
+.eg-hero p {{ color: {INK}; font-size: clamp(1.02rem, 2.2vw, 1.3rem); max-width: 44rem;
+              margin: {SPACE['md']}rem 0 0 0; }}
+.eg-hero-tag {{ color: {AMBER}; font-weight: 700; font-size: {TYPE['small']}rem;
+                letter-spacing: 0.04em; margin-top: {SPACE['md']}rem; }}
+
+.eg-info .eg-step {{ width: 2.5rem; height: 2.5rem; border-radius: 50%; background: {AMBER};
+                     color: {ON_AMBER}; font-family: {HEADING_FONT}; font-weight: 700;
+                     font-size: 1.2rem; display: flex; align-items: center;
+                     justify-content: center; margin-bottom: {SPACE['sm']}rem; }}
+.eg-info .eg-step-icon {{ background: {BORDER}; color: {TEAL}; font-size: 1.4rem; }}
+.eg-info .eg-tag {{ color: {AMBER}; font-size: {TYPE['small']}rem; font-weight: 700;
+                    letter-spacing: 0.04em; text-transform: uppercase; }}
+.eg-info .eg-title {{ font-family: {HEADING_FONT}; font-weight: 600; font-size: {TYPE['h3']}rem;
+                      color: {INK}; margin: 0.15rem 0 {SPACE['xs']}rem 0; }}
+.eg-info .eg-body {{ color: {MUTED}; }}
+
+.eg-footer {{ border-top: 1px solid {BORDER}; margin-top: {SPACE['xl']}rem;
+              padding-top: {SPACE['md']}rem; color: {MUTED}; font-size: {TYPE['small']}rem;
+              text-align: center; }}
+
+/* Sidebar: the page you are on is highlighted in amber. */
+[data-testid="stSidebarNavLink"] {{ border-radius: 10px; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {AMBER}; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] span,
+[data-testid="stSidebarNavLink"][aria-current="page"] p {{ color: {ON_AMBER} !important;
+                                                           font-weight: 700; }}
 
 .eg-kpi .eg-label {{ color: {MUTED}; font-size: {TYPE['small']}rem; font-weight: 600;
                      letter-spacing: 0.02em; }}
@@ -134,10 +169,52 @@ def apply_theme():
 
 # --------------------------------------------------------------------- blocks
 def page_header(title, description, icon=None):
-    """Page title, one-line description and a short amber rule under them."""
-    mark = _icon(icon) if icon else ""
-    st.html(f'<div class="eg-header"><h1>{mark}{_text(title)}</h1>'
-            f'<p>{_text(description)}</p><div class="eg-rule"></div></div>')
+    """Every page starts the same way: the title, one line saying what the page
+    is for, and a short amber rule."""
+    st.title(f":material/{icon}: {title}" if icon else title)
+    st.html(f'<div class="eg-header"><p>{_text(description)}</p>'
+            '<div class="eg-rule"></div></div>')
+
+
+LOGO = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 56" width="230" height="56">
+  <path d="M6 28 C16 11 40 11 50 28 C40 45 16 45 6 28 Z" fill="none" stroke="{AMBER}"
+        stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="28" cy="28" r="8.5" fill="{TEAL}"/><circle cx="28" cy="28" r="3.6" fill="{BACKGROUND}"/>
+  <text x="62" y="38" font-family="Rubik, Segoe UI, Arial, sans-serif" font-size="29"
+        font-weight="700" fill="{INK}">EyeGuard</text>
+</svg>"""
+
+
+def sidebar_brand():
+    """The EyeGuard logo and name at the top of the sidebar, above the page links."""
+    st.logo(LOGO, size="large")
+
+
+def hero(title, text, tag=None):
+    """The banner at the top of the Home page."""
+    tag_html = f'<div class="eg-hero-tag">{_text(tag)}</div>' if tag else ""
+    st.html(f'<div class="eg-hero"><h1>{_text(title)}</h1><p>{_text(text)}</p>{tag_html}</div>')
+
+
+def info_cards(cards):
+    """A row of cards that wraps on a narrow screen. Each card is a dictionary:
+    title, text, and optionally badge (a step number), icon or tag (a small label)."""
+    parts = []
+    for card in cards:
+        badge = ""
+        if card.get("badge") is not None:
+            badge = f'<div class="eg-step">{_text(card["badge"])}</div>'
+        elif card.get("icon"):
+            badge = f'<div class="eg-step eg-step-icon">{_icon(card["icon"])}</div>'
+        tag = f'<div class="eg-tag">{_text(card["tag"])}</div>' if card.get("tag") else ""
+        parts.append(f'<div class="eg-card eg-info">{badge}{tag}'
+                     f'<div class="eg-title">{_text(card["title"])}</div>'
+                     f'<div class="eg-body">{_text(card["text"])}</div></div>')
+    st.html('<div class="eg-row eg-row-wide">' + "".join(parts) + "</div>")
+
+
+def footer(text):
+    st.html(f'<div class="eg-footer">{_text(text)}</div>')
 
 
 def pill_html(text, kind="neutral"):

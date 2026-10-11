@@ -5,10 +5,9 @@ from urllib.parse import urlparse
 import streamlit as st
 
 import profiles
+import ui
 
-st.title("My Profile")
-st.caption("Tell EyeGuard what you wear at the computer so the distance reading is "
-           "right for you.")
+ui.page_header("My Profile", "Tell EyeGuard what you wear at the computer so the distance reading is right for you.")
 
 LABELS = {"none": "Nothing", "glasses": "Glasses", "contacts": "Contact lenses"}
 

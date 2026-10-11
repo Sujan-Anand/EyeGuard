@@ -30,6 +30,10 @@ def showcase():
     import ui
     ui.apply_theme()
     ui.page_header("Session dashboard", "One session at a glance.", icon="monitoring")
+    ui.hero("Blink more. Sit back. Look away.", "A <smart> monitor.", "SDG 3.4")
+    ui.info_cards([dict(badge=1, title="It watches", text="Finds 478 points."),
+                   dict(icon="school", tag="Secondary goal", title="SDG 4", text="Learning.")])
+    ui.footer("Team Dark Fantasy")
     ui.kpi_card("Average blink rate", "6.3", "/ min", status="Below normal", kind="warn",
                 note="Healthy is 15-20")
     ui.kpi_row([dict(label="Duration", value="60", unit="min"),
@@ -119,6 +123,7 @@ class BlocksTest(unittest.TestCase):
         at = AppTest.from_function(showcase, default_timeout=60).run()
         cls.exceptions = [e.value for e in at.exception]
         cls.blocks = [h.proto.body for h in at.get("html")]
+        cls.titles = [t.value for t in at.title]
         cls.page = "\n".join(cls.blocks)
 
     def block(self, containing):
@@ -129,14 +134,30 @@ class BlocksTest(unittest.TestCase):
 
     def test_everything_renders(self):
         self.assertEqual(self.exceptions, [])
-        self.assertEqual(len(self.blocks), 9)                    # the CSS + eight blocks
+        self.assertEqual(len(self.blocks), 12)                   # the CSS + eleven blocks
         self.assertEqual(sum("<style>" in b for b in self.blocks), 1)
 
     def test_page_header(self):
+        self.assertEqual(self.titles, [":material/monitoring: Session dashboard"])   # a real page title, with its icon
         header = self.block("eg-header\"")
-        self.assertIn("<h1>", header)
-        self.assertIn("Session dashboard", header)
-        self.assertIn("One session at a glance.", header)
+        self.assertIn("One session at a glance.", header)        # the one-line description
+        self.assertIn("eg-rule", header)
+
+    def test_hero_cards_and_footer(self):
+        hero = self.block("eg-hero\"")
+        self.assertIn("<h1>Blink more. Sit back. Look away.</h1>", hero)
+        self.assertIn("A &lt;smart&gt; monitor.", hero)
+        self.assertIn("SDG 3.4", hero)
+        cards = self.block("eg-row eg-row-wide")
+        self.assertEqual(cards.count("eg-card eg-info"), 2)
+        self.assertIn('<div class="eg-step">1</div>', cards)
+        self.assertIn("Secondary goal", cards)
+        self.assertIn("Team Dark Fantasy", self.block("eg-footer\""))
+
+    def test_the_logo_and_sidebar_highlight(self):
+        self.assertIn("EyeGuard", ui.LOGO)
+        self.assertIn(ui.AMBER, ui.LOGO)
+        self.assertIn('[aria-current="page"] { background: ' + ui.AMBER, ui.CSS)
 
     def test_kpi_cards_show_units_and_a_status_in_words(self):
         card = self.block("Average blink rate")

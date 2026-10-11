@@ -7,10 +7,9 @@ import streamlit as st
 import charts
 import sessions
 from report import BLINK_ALERT_RATE, BLINK_WARN_RATE
+import ui
 
-st.title("Insights")
-st.caption("Patterns across all your sessions: time of day, strain trend, "
-           "best and worst sessions.")
+ui.page_header("Insights", "Patterns across all your sessions: time of day, trend, best and worst.")
 
 
 def show(value, pattern):

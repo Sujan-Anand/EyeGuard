@@ -25,6 +25,7 @@ baseFontSize = 17
 headingFontSizes = ["2.1rem", "1.5rem", "1.2rem", "1.05rem", "1rem", "0.9rem"]
 headingFontWeights = [700, 600, 600, 600, 600, 600]
 baseRadius = "large"
+buttonRadius = "full"               # pill-shaped buttons
 showWidgetBorder = true
 
 # status colours (used by st.success / st.warning / st.error and metric labels)
