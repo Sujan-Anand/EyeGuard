@@ -89,6 +89,8 @@ At -7.00 D, m is about 0.905: the eye looks about 10% smaller, and a raw reading
 - **Glare:** with a glasses profile, if the eye readings jump about for about 2 seconds, EyeGuard asks `Glare on your glasses? Reduce light behind you or tilt the screen.`
 - **Strong lenses:** at 6 D or more, EyeGuard shows one reminder per session to get a full eye check-up regularly.
 
+On the website, set the same things on the **My Profile** page. Live Check then corrects the distance, uses your safe distance, shows the glare warning, and its **Calibrate distance** button stores the calibration in the profile. A website profile lasts for that browser tab. When you run the website on your own laptop, the page can also load the profiles saved by the desktop app and save back to them.
+
 Limits: the formula uses the spherical power only and ignores astigmatism (cylinder). It assumes the lens sits 15 mm from the eye. EyeGuard cannot measure or diagnose eye power; it only uses the number you enter, and nothing here is medical advice.
 
 Profiles are stored in `profiles.json` in the project folder. To change a profile, edit that file or delete its entry and answer the questions again. EyeGuard cannot measure or diagnose eye power; it only stores the number you type. Without `--profile`, EyeGuard works exactly as before.
@@ -111,7 +113,8 @@ It opens at http://localhost:8501.
 | Page | What it does |
 |---|---|
 | Home | The problem, how EyeGuard works, and the SDGs it supports. |
-| Live Check | Webcam check in the browser with the numbers, alerts and 20-20-20 break drawn on the video. Also has a single-photo mode. |
+| Live Check | Webcam check in the browser with the numbers, alerts and 20-20-20 break drawn on the video. Also has a single-photo mode. Uses your profile if you have set one. |
+| My Profile | What you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them. |
 | Session Dashboard | KPI cards, interactive charts, tips and downloads for one session. Pick a CSV from `logs/`, upload one, or generate a demo session. |
 | Insights | All sessions together: blink rate by hour of the day, strain trend, best and worst session. |
 | About | Tech stack, formulas, future scope and the AI usage disclosure. |
@@ -179,7 +182,8 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `report.py` | Loads a session CSV, works out the summary and tips, draws the matplotlib report. |
 | `sample_data.py` | Makes realistic demo sessions. |
 | `app.py` | Website entry point and Home page. |
-| `pages/` | Live Check, Session Dashboard, Insights and About pages. |
+| `pages/` | Live Check, My Profile, Session Dashboard, Insights and About pages. |
+| `profiles.py` | Profiles: what is saved, the terminal questions, and the lens formula. |
 | `live.py` | Keeps the live session between video frames for the Live Check page and draws the overlay. |
 | `sessions.py` | Finds, loads and checks session CSVs; combines sessions for Insights. |
 | `charts.py` | Plotly charts. |

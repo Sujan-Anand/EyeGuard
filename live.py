@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 import eyeguard as eg
+import profiles
 
 # The same values eyeguard.main() uses inside its loop.
 LOOK_AWAY_YAW = 0.25             # nose this far off-centre -> looking away
@@ -81,6 +82,10 @@ class EyeTracker:
         self.rows = deque(maxlen=MAX_ROWS)   # one row per second, like the desktop CSV
         self.state = None                    # latest numbers, for the page to show
         self.error = ""                      # set if a frame could not be processed
+        self.profile = None                  # set_profile(): glasses, safe distance, calibration
+        self.safe_cm = eg.MIN_SAFE_DISTANCE_CM
+        self.lens_m = 1.0                    # glasses make the iris look bigger or smaller
+        self.glare = None                    # GlareDetector for glasses profiles
 
         self.focal_px = None                 # set from frame width, or by calibration
         self.calib_ears = []                 # first frames -> personal EAR threshold
@@ -94,6 +99,29 @@ class EyeTracker:
         self.last_seen = None
         self.last_log = None                 # the clock second of the last saved row
         self.dist, self.ear, self.looking_away = 0.0, 0.0, False
+
+    # ------------------------------------------------------------ profile
+    def set_profile(self, profile):
+        """Uses a profile from the My Profile page (None = no profile, the usual
+        50 cm limit and no correction). Safe to call on every page run."""
+        with self.lock:
+            if profile == self.profile:
+                return
+            was_calibrated = profiles.is_calibrated(self.profile)
+            self.profile = dict(profile) if profile else None
+            self.safe_cm = profile["safe_distance_cm"] if profile else eg.MIN_SAFE_DISTANCE_CM
+            self.lens_m = profiles.distance_factor(profile)
+            self.glare = (eg.GlareDetector()
+                          if profile and profile["correction"] == "glasses" else None)
+            if profiles.is_calibrated(profile):
+                self.focal_px = profile["focal_px"]      # a saved calibration wins
+            elif was_calibrated:
+                self.focal_px = None                     # back to the usual estimate
+
+    def current_profile(self):
+        """The profile as it is now (it gains a calibration when you calibrate)."""
+        with self.lock:
+            return dict(self.profile) if self.profile else None
 
     # ------------------------------------------------------------ buttons
     def request(self, action):
@@ -159,6 +187,10 @@ class EyeTracker:
         if "calibrate" in self.pending and face:
             self.focal_px = (eg.iris_width_px(pts) * eg.MIN_SAFE_DISTANCE_CM
                              / eg.IRIS_DIAMETER_CM)
+            self.lens_m = 1.0                    # calibrating with glasses on includes the lens
+            if self.profile:
+                self.profile = dict(self.profile, focal_px=float(self.focal_px),
+                                    calibrated_on=datetime.fromtimestamp(now).date().isoformat())
         self.pending.clear()
 
         if face:
@@ -166,7 +198,8 @@ class EyeTracker:
                         + eg.eye_aspect_ratio(pts, eg.RIGHT_EYE)) / 2
             yaw, roll = eg.head_pose(pts)
             self.looking_away = abs(yaw) > LOOK_AWAY_YAW
-            self.dist = eg.distance_cm(eg.iris_width_px(pts), self.focal_px)
+            iris_px = eg.iris_width_px(pts)
+            self.dist = eg.distance_cm(iris_px, self.focal_px) * self.lens_m
 
             # personal threshold: 75% of your normal open-eye EAR
             if len(self.calib_ears) < CALIBRATION_FRAMES:
@@ -215,16 +248,20 @@ class EyeTracker:
             low_blink = eg.blink_alert(blink_rate) if elapsed > BLINK_ALERT_AFTER else None
             if low_blink:                        # "warn" below 7/min, "alert" below 5/min
                 alert, alert_level = low_blink
-            if 0 < self.dist < eg.MIN_SAFE_DISTANCE_CM:
+            if 0 < self.dist < self.safe_cm:
                 alert, alert_level = f"Too close! {self.dist:.0f} cm - move back", "alert"
             if abs(roll) > eg.HEAD_TILT_DEG:
                 alert, alert_level = "Straighten your head / posture", "alert"
+            if self.glare and self.glare.update(iris_px, self.ear, self.ear_threshold, now):
+                alert, alert_level = eg.GLARE_MESSAGE, "warn"
+        if self.glare and not face:
+            self.glare.reset()
         if brightness < eg.DARK_BRIGHTNESS:
             alert, alert_level = "Room too dark - turn on a light", "alert"
 
         score = eg.strain_score(blink_rate, self.dist if face else 0,
                                 min(since_break, self.break_every_s) / 60,
-                                self.drowsy_events, self.break_every_s / 60)
+                                self.drowsy_events, self.break_every_s / 60, self.safe_cm)
 
         self.state = {
             "face": face, "ear": self.ear, "ear_threshold": self.ear_threshold,
@@ -237,7 +274,12 @@ class EyeTracker:
             "break_state": self.break_timer.state,       # waiting / counting / paused / done
             "next_break_s": max(0.0, self.break_every_s - since_break),
             "strain_score": score, "alert": alert, "alert_level": alert_level,
-            "elapsed": elapsed,
+            "elapsed": elapsed, "safe_cm": self.safe_cm,
+            # for the video panel: who is using it, and calibration help
+            "profile_lines": ((profiles.to_ascii(self.profile["name"]) or "Profile",
+                               profiles.describe(self.profile)) if self.profile else ()),
+            "notes": [note for note in (profiles.estimate_note(self.profile),
+                                        profiles.calibration_note(self.profile)) if note],
         }
 
         # ---------------- one row per second, same columns as the desktop CSV
@@ -274,12 +316,14 @@ def draw_overlay(frame, pts, state):
     cv2.rectangle(panel, (0, 0), (300, 190), (30, 30, 30), -1)
     frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
     eg.put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
+    for row, text in enumerate(state["profile_lines"]):
+        eg.put_fit(frame, text, (132, 15 + 16 * row), 163, (220, 220, 220), 0.42)
     eg.put(frame, "Blinks/min: measuring..." if state["measuring"]
            else f"Blinks/min: {state['blink_rate']:4.1f}",
            (10, 60), eg.blink_color(state["blink_rate"]))
     eg.put(frame, f"Total blinks: {state['blinks_total']}", (10, 85))
     eg.put(frame, f"Distance: {state['distance_cm']:4.0f} cm" if face else "Distance: --",
-           (10, 110), eg.level_color(not face or state["distance_cm"] >= eg.MIN_SAFE_DISTANCE_CM))
+           (10, 110), eg.level_color(not face or state["distance_cm"] >= state["safe_cm"]))
     eg.put(frame, f"Next break: {state['next_break_s'] / 60:4.1f} min", (10, 135))
     eg.put(frame, f"Strain score: {score}/100", (10, 160), eg.level_color(score < 50))
     eg.put(frame, f"EAR {state['ear']:.2f} (thr {state['ear_threshold']:.2f})",
@@ -293,7 +337,16 @@ def draw_overlay(frame, pts, state):
         timer = eg.BreakTimer()                  # same break screen as the desktop app
         timer.done, timer.state = state["break_done_s"], state["break_state"]
         frame = eg.draw_break_screen(frame, timer)
-    elif state["alert"]:
+        return frame
+    notes = [n.replace("press c", "click Calibrate distance") for n in state["notes"]]
+    if notes:                                    # calibration help, on a dark strip
+        strip = frame.copy()
+        cv2.rectangle(strip, (0, h - 76 - 18 * len(notes)), (w, h - 72), (30, 30, 30), -1)
+        frame = cv2.addWeighted(strip, 0.6, frame, 0.4, 0)
+        for row, text in enumerate(reversed(notes)):
+            eg.put_centred(frame, profiles.to_ascii(text), h - 80 - 18 * row,
+                           (255, 255, 255), 0.5, 1)
+    if state["alert"]:
         cv2.rectangle(frame, (0, h - 70), (w, h - 28),
                       eg.AMBER if state["alert_level"] == "warn" else eg.ALERT_RED, -1)
         eg.put_centred(frame, state["alert"], h - 40, (255, 255, 255))

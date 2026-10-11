@@ -114,12 +114,14 @@ def home():
 
 home_page = st.Page(home, title="Home", icon=":material/home:", default=True)
 live_page = st.Page("pages/live_check.py", title="Live Check", icon=":material/videocam:")
+profile_page = st.Page("pages/my_profile.py", title="My Profile", icon=":material/person:")
 dashboard_page = st.Page("pages/session_dashboard.py", title="Session Dashboard",
                          icon=":material/monitoring:")
 insights_page = st.Page("pages/insights.py", title="Insights", icon=":material/insights:")
 about_page = st.Page("pages/about.py", title="About", icon=":material/info:")
 
-page = st.navigation([home_page, live_page, dashboard_page, insights_page, about_page])
+page = st.navigation([home_page, live_page, profile_page, dashboard_page, insights_page,
+                      about_page])
 
 with st.sidebar:
     st.caption("EyeGuard · PySustain-2026\n\nAwareness tool, not a medical device.")

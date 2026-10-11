@@ -3,6 +3,7 @@
 import streamlit as st
 
 import eyeguard as eg
+import profiles
 
 st.title("About EyeGuard")
 st.caption("How it is built, the formulas behind it, and where it goes next.")
@@ -24,7 +25,7 @@ st.table({
         "Finds 478 points on the face in every frame, including each eyelid and iris.",
         "Distances and angles between those points.",
         "One row per second is saved to a CSV; reports and tips are built from it.",
-        "These pages: Home, Live Check, Session Dashboard, Insights, About.",
+        "These pages: Home, Live Check, My Profile, Session Dashboard, Insights, About.",
         "Sends webcam video from the browser to Python and back with the overlay.",
         "The dashboard and insights charts.",
     ],
@@ -59,6 +60,30 @@ st.write(
     f"laptop webcam. Pressing calibrate while sitting {eg.MIN_SAFE_DISTANCE_CM} cm "
     "away measures it for your own camera. Anything closer than "
     f"{eg.MIN_SAFE_DISTANCE_CM} cm counts as too close.")
+
+st.subheader("Glasses and eye power")
+st.write(
+    "Glasses change how big the iris looks to the camera. A minus lens (short "
+    "sight) makes the eye look smaller, so the plain formula would think you are "
+    "further away than you are and miss \"Too close\". A plus lens does the "
+    "opposite. Contact lenses sit on the eye and change almost nothing. Blink "
+    "detection is a ratio, so it is not affected.")
+st.latex(r"m = \frac{1}{1 - d \times P} \qquad distance = raw\ distance \times m")
+st.write(
+    f"*P* is the lens power in dioptres and *d* is the lens-to-eye distance, about "
+    f"{profiles.LENS_DISTANCE_M * 1000:.0f} mm. At -7.00 D, m is about "
+    f"{profiles.lens_magnification('glasses', -7):.3f}: the eye looks about 10% smaller. "
+    "You enter your power on the My Profile page.")
+st.markdown(
+    "- **Calibrating is more accurate than the formula.** Wear the glasses or "
+    f"contacts you normally use at the computer, sit {profiles.CALIBRATION_DISTANCE_CM} cm "
+    "away and calibrate. That measurement already includes your lenses, so the "
+    "formula is no longer needed.\n"
+    "- **Astigmatism is ignored.** Only the spherical power is used.\n"
+    "- **Glare:** with a glasses profile, EyeGuard warns when reflections make the "
+    "eye readings jump about.\n"
+    "- **EyeGuard cannot measure or diagnose eye power.** It only uses the number "
+    "from your prescription that you type in.")
 
 st.subheader("3. Eye Strain Score (0-100)")
 st.write("Four parts are added together. 0 means relaxed eyes, 100 means heavy strain.")

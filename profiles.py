@@ -158,6 +158,22 @@ def corrected_distance(raw_cm, profile):
     return raw_cm * distance_factor(profile)
 
 
+def explain(profile):
+    """One plain sentence about what this profile changes, for the My Profile page."""
+    if not profile or profile["correction"] == "none":
+        return "No glasses or contacts, so EyeGuard uses the iris size as it is."
+    if profile["correction"] == "contacts":
+        return ("Contact lenses sit on the eye and barely change how big it looks, "
+                "so no correction is needed.")
+    if profile["power"] == 0:
+        return "Glasses with no power do not change how big your eyes look to the camera."
+    m = lens_magnification("glasses", profile["power"])
+    percent = abs(1 - m) * 100
+    size = "smaller" if m < 1 else "bigger"
+    return (f"At {profile['power']:+.2f} D your eyes look about {percent:.0f}% {size} to the "
+            "camera; EyeGuard corrects for this.")
+
+
 def estimate_note(profile):
     """Shown while the distance is only estimated from the lens power."""
     if (not profile or is_calibrated(profile) or profile["correction"] != "glasses"

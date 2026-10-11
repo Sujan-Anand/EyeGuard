@@ -12,6 +12,7 @@ from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 import eyeguard as eg
 import live
+import profiles
 import sessions
 
 # Public STUN servers let the browser and the server find a route to each other.
@@ -66,6 +67,25 @@ except Exception as err:
 if "tracker" not in st.session_state:
     st.session_state["tracker"] = live.EyeTracker()
 tracker = st.session_state["tracker"]
+
+# ---------------------------------------------------------------- the profile
+profile = st.session_state.get("profile")           # set on the My Profile page
+calibrated_here = tracker.current_profile()         # gains a calibration when you calibrate
+if profile and calibrated_here and calibrated_here["name"] == profile["name"] \
+        and calibrated_here["focal_px"] != profile["focal_px"]:
+    profile = st.session_state["profile"] = calibrated_here
+tracker.set_profile(profile)
+if profile:
+    st.caption(f":material/person: Profile: **{profile['name']}** · {profiles.describe(profile)}"
+               f" · safe distance {profile['safe_distance_cm']} cm. "
+               + ("Calibrated on " + profile["calibrated_on"] + "."
+                  if profiles.is_calibrated(profile) else profiles.explain(profile)))
+    if profiles.high_power_note(profile) and not st.session_state.get("high_power_shown"):
+        st.session_state["high_power_shown"] = True          # once per session
+        st.info(profiles.high_power_note(profile), icon=":material/visibility:")
+else:
+    st.caption("Wear glasses or contact lenses? Set up **My Profile** so the distance "
+               "is corrected for your lenses.")
 
 # ------------------------------------------------------------------- settings
 with st.container(border=True):
@@ -218,8 +238,10 @@ with st.container(horizontal=True):
     if st.button("Start a break now", icon=":material/self_improvement:", disabled=not playing):
         tracker.request("break")
     if st.button("Calibrate distance", icon=":material/straighten:", disabled=not playing,
-                 help=f"Sit exactly {eg.MIN_SAFE_DISTANCE_CM} cm from the camera, then "
-                      "click. Distance readings are more accurate afterwards."):
+                 help="Wear the glasses or contacts you normally use at the computer, "
+                      f"sit exactly {eg.MIN_SAFE_DISTANCE_CM} cm from the camera, then "
+                      "click. Distance readings are more accurate afterwards, and the "
+                      "result is kept in your profile."):
         tracker.request("calibrate")
         st.toast(f"Calibrated at {eg.MIN_SAFE_DISTANCE_CM} cm", icon=":material/check_circle:")
     if st.button("Reset counters", icon=":material/restart_alt:", disabled=not playing):
