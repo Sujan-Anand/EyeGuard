@@ -13,7 +13,8 @@ Uses your webcam + MediaPipe Face Mesh to track:
     looking back at the screen pauses the 20 s timer)
   * Live Eye Strain Score (0-100), logged to CSV for report.py
 
-Run:   python eyeguard.py            (a break is due every 20 minutes)
+Run:   python eyeguard.py            (opens a small window to pick or make a profile)
+       python eyeguard.py --no-profile   (skip that window and start without a profile)
        python eyeguard.py --mute     (start with the sound off)
        python eyeguard.py --test-sound   (play each alert sound once, then exit)
        python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)
@@ -21,6 +22,7 @@ Run:   python eyeguard.py            (a break is due every 20 minutes)
                                           small always-on-top box; add --no-mini to hide the box)
 Keys:  q = quit   c = calibrate distance (sit 50 cm away first)
        b = start a break now   r = reset session counters   m = sound on/off
+       p = switch profile (opens the profile window again)
 """
 
 import argparse
@@ -394,6 +396,31 @@ def draw_break_screen(frame, timer):
     return frame
 
 
+def wrap_note(text, limit=70):
+    """A long note for the video as two lines, split at a comma or a space."""
+    if len(text) <= limit:
+        return [text]
+    cut = text.rfind(", ", 0, limit)
+    cut = cut + 1 if cut > 0 else text.rfind(" ", 0, limit)
+    if cut <= 0:
+        return [text]
+    return [text[:cut].strip(), text[cut:].strip()]
+
+
+def pick_profile(current=None, fallback="none"):
+    """Opens the profile window (profile_window.py) and waits for a choice.
+    Returns ("use", profile), ("none", None) for "Continue without profile",
+    or ("cancel", None) if the window was closed. If no window can be shown,
+    the answer is (fallback, None)."""
+    try:
+        import profile_window              # loaded here: it needs tkinter, the website does not
+        return profile_window.choose(current)
+    except Exception as err:
+        print(f"Profile window not shown ({err}). "
+              'To use a profile, start with --profile "Name".')
+        return fallback, None
+
+
 # ------------------------------------------------------------- main app
 def main():
     ap = argparse.ArgumentParser(description="EyeGuard eye strain monitor")
@@ -404,6 +431,8 @@ def main():
     ap.add_argument("--profile", metavar="NAME",
                     help='use a saved profile, or create it with three questions, '
                          'e.g. --profile "Sujan - glasses"')
+    ap.add_argument("--no-profile", action="store_true",
+                    help="start without a profile and without the profile window")
     ap.add_argument("--background", action="store_true",
                     help="no video window: Windows notifications and a small "
                          "always-on-top box with a Stop button")
@@ -428,21 +457,51 @@ def main():
         except KeyboardInterrupt:
             print("\nCancelled.")
             return
-    # two short lines beside the title: who is using it, and what they wear
-    profile_lines = ((profiles.to_ascii(profile["name"]) or "Profile", profiles.describe(profile))
-                     if profile else ())            # the video font only has plain letters
+        if profile:
+            profiles.remember_last(profile["name"])
+    elif not args.no_profile:           # no name given: pick or make one in a small window
+        choice, profile = pick_profile()
+        if choice == "cancel":
+            print("The profile window was closed, so EyeGuard did not start.")
+            return
+        print(f"Profile: {profiles.summary(profile)}" if profile
+              else "No profile in use: the usual 50 cm and no lens correction.")
 
-    # what the profile changes (with no profile these keep their usual values)
-    safe_cm = profile["safe_distance_cm"] if profile else MIN_SAFE_DISTANCE_CM
-    lens_m = profiles.distance_factor(profile)      # glasses make the iris look bigger/smaller
-    glare = GlareDetector() if profile and profile["correction"] == "glasses" else None
-    if profiles.is_calibrated(profile):
-        print(f"Using the calibration saved on {profile['calibrated_on']} "
-              f"(focal = {profile['focal_px']:.0f} px).")
-    for note in (profiles.estimate_note(profile), profiles.calibration_note(profile),
-                 profiles.high_power_note(profile)):
-        if note:
-            print(note)
+    # What a profile changes. With no profile these keep their usual values.
+    profile_lines = ()                  # two short lines beside the title
+    safe_cm = MIN_SAFE_DISTANCE_CM
+    lens_m = 1.0                        # glasses make the iris look bigger/smaller
+    glare = None
+    focal_px = None                     # set from frame width, a saved calibration, or the c key
+    notices = []                        # (text, show until this time) small lines on the video
+
+    def use_profile(new, now):
+        """Applies a profile (or None) straight away: at the start, and when
+        the profile is switched with the p key."""
+        nonlocal profile, profile_lines, safe_cm, lens_m, glare, focal_px
+        same = (profiles.name_key(profile["name"]) == profiles.name_key(new["name"])
+                if profile and new else profile is new)
+        profile = new
+        # who is using it, and what they wear (the video font only has plain letters)
+        profile_lines = ((profiles.to_ascii(profile["name"]) or "Profile",
+                          profiles.describe(profile)) if profile else ())
+        safe_cm = profile["safe_distance_cm"] if profile else MIN_SAFE_DISTANCE_CM
+        lens_m = profiles.distance_factor(profile)
+        glare = GlareDetector() if profile and profile["correction"] == "glasses" else None
+        if profiles.is_calibrated(profile):
+            focal_px = profile["focal_px"]
+            print(f"Using the calibration saved on {profile['calibrated_on']} "
+                  f"(focal = {profile['focal_px']:.0f} px).")
+        elif not same:
+            focal_px = None             # someone else's calibration does not fit: estimate again
+        for note in (profiles.estimate_note(profile), profiles.calibration_note(profile),
+                     profiles.high_power_note(profile)):
+            if note:
+                print(note)
+        if profiles.high_power_note(profile):           # once, for the first 10 seconds
+            notices.append((profiles.high_power_note(profile), now + 10))
+
+    use_profile(profile, time.time())
 
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
@@ -471,8 +530,6 @@ def main():
                   "strain_score", "alert"])
 
     # state
-    focal_px = profile["focal_px"] if profiles.is_calibrated(profile) else None
-                                        # else set from frame width, or by calibration
     calib_ears = []                     # first few seconds -> personal EAR threshold
     ear_threshold = 0.21
     closed_frames, closed_since = 0, None
@@ -488,9 +545,6 @@ def main():
     ear = 0.0
     looking_away = False
     sound_on = not args.mute            # m key toggles this
-    notices = []                        # (text, show until this time) small lines on the video
-    if profiles.high_power_note(profile):               # once per session, first 10 seconds
-        notices.append((profiles.high_power_note(profile), session_start + 10))
 
     no_face_since = None                # background mode: when the face was last lost
     away_paused = False                 # background mode: nobody in view for 2+ minutes
@@ -658,7 +712,8 @@ def main():
         put(frame, f"Strain score: {score}/100", (10, 160), level_color(score < 50))
         put(frame, f"EAR {ear:.2f} (thr {ear_threshold:.2f})", (10, 185), (200, 200, 200), 0.5, 1)
         put(frame, "q quit | c calibrate | b break | r reset", (10, 207), (200, 200, 200), 0.45, 1)
-        put(frame, f"m sound {'ON' if sound_on else 'OFF'}", (10, 227), (200, 200, 200), 0.45, 1)
+        put(frame, f"m sound {'ON' if sound_on else 'OFF'} | p profile", (10, 227),
+            (200, 200, 200), 0.45, 1)
 
         bar_w = int((w - 20) * score / 100)
         cv2.rectangle(frame, (10, h - 20), (w - 10, h - 8), (60, 60, 60), -1)
@@ -669,8 +724,8 @@ def main():
         else:
             # small lines above the alert bar: notices, then calibration help
             lines = [text for text, until in notices if now < until]
-            lines += [note for note in (profiles.estimate_note(profile),
-                                        profiles.calibration_note(profile)) if note]
+            for note in (profiles.estimate_note(profile), profiles.calibration_note(profile)):
+                lines += wrap_note(note) if note else []
             if lines:                     # on a dark strip so they stay readable
                 top = h - 76 - 18 * len(lines)
                 strip = frame.copy()
@@ -720,8 +775,7 @@ def main():
                 try:
                     profile = profiles.save_calibration(profile, focal_px)
                     print(f"Calibration saved to profile {profile['name']}.")
-                    notices.append((f"Calibrated at {MIN_SAFE_DISTANCE_CM} cm and saved to "
-                                    "your profile", now + 5))
+                    notices.append((profiles.CALIBRATED_MESSAGE, now + 5))
                 except (OSError, ValueError) as err:
                     print(f"Calibration not saved: {err}")
         if key == ord("b"):
@@ -734,6 +788,16 @@ def main():
         if key == ord("m"):
             sound_on = not sound_on
             print(f"Sound {'on' if sound_on else 'off'}")
+        if key == ord("p"):               # switch profile without restarting
+            choice, picked = pick_profile(profile["name"] if profile else None, "cancel")
+            now = time.time()
+            break_timer.hold()            # the time spent in the window is not counted
+            closed_frames, closed_since = 0, None
+            if choice != "cancel":
+                use_profile(picked, now)
+                text = f"Profile: {picked['name']}" if picked else "No profile in use"
+                print(text)
+                notices.append((text, now + 5))
 
     if old_ctrl_c is not None:
         signal.signal(signal.SIGINT, old_ctrl_c)

@@ -129,6 +129,14 @@ st.caption("If nobody is in view for 2 minutes it sends one \"EyeGuard paused\" 
            "at most 15 times a second, and the session CSV is the same as in the "
            "normal mode. It works with `--profile` and `--mute`.")
 
+st.subheader("6. Profiles without typing commands")
+st.write(
+    "Double-clicking `EyeGuard.bat` opens a small window before the camera starts: pick "
+    "a saved profile (the one used last time is already selected), make a new one on a "
+    "single form, or continue without a profile. A new profile is guided through one "
+    "calibration at arm's length, and pressing `p` in the video window switches profile "
+    "without restarting.")
+
 st.subheader("Known limits")
 st.markdown(
     "- Distance is an estimate. It is most accurate after calibrating and when you "

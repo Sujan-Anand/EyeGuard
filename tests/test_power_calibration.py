@@ -19,8 +19,9 @@ import eyeguard
 import profiles
 
 ESTIMATE = "Estimated for -7.00 D glasses - press c to calibrate for best accuracy"
-WEAR = ("Wear the glasses or contacts you normally use at the computer, sit 50 cm away, "
-        "then press c.")
+WEAR = "Sit at arm's length (about 50 cm), wearing what you entered, then press C to calibrate"
+WEAR_LINES = ["Sit at arm's length (about 50 cm), wearing what you entered,",
+              "then press C to calibrate"]            # how it is drawn on the video
 HIGH = "Your glasses power is high. Remember to get a full eye check-up regularly."
 
 
@@ -72,7 +73,7 @@ class MagnificationTest(unittest.TestCase):
                       profiles.make("N"), None):
             self.assertIsNone(profiles.estimate_note(other))
         self.assertEqual(profiles.calibration_note(profiles.make("N")),
-                         "Sit 50 cm away, then press c to calibrate distance.")
+                         "Sit at arm's length (about 50 cm), then press C to calibrate")
         # the reminder is for strong lenses only, and never a diagnosis
         self.assertIsNone(profiles.high_power_note(profiles.make("G", "glasses", -5.75)))
         self.assertIsNotNone(profiles.high_power_note(profiles.make("G", "glasses", 6)))
@@ -150,7 +151,7 @@ class DesktopPowerTest(TempProfilesFile):
         self.assertLess(distances(r)[0], distances(plain)[0] - 5)         # about 62 -> 56 cm
         for texts in r["texts"]:
             self.assertIn(ESTIMATE, texts)
-            self.assertIn(WEAR, texts)
+            self.assertTrue(set(WEAR_LINES) <= texts)                     # the guide, on two lines
         self.assertIn("Estimated for -7.00 D glasses — press c to calibrate", r["printed"])
         self.assertIn(WEAR, r["printed"])
 
@@ -160,7 +161,7 @@ class DesktopPowerTest(TempProfilesFile):
         r = run_desktop(["--profile", "Sujan - contacts"], frames=6)
         self.assertEqual(distances(r), distances(plain))
         self.assertFalse(any(t.startswith("Estimated") for t in all_text(r)))
-        self.assertIn(WEAR, all_text(r))                                  # still asked to calibrate
+        self.assertTrue(set(WEAR_LINES) <= all_text(r))                   # still asked to calibrate
 
     def test_pressing_c_saves_the_calibration_to_the_profile(self):
         profiles.save(profiles.make("Sujan - glasses", "glasses", -7))
@@ -174,7 +175,7 @@ class DesktopPowerTest(TempProfilesFile):
         self.assertIn(ESTIMATE, r["texts"][3])                            # before pressing c
         for texts in r["texts"][4:]:                                      # after: no more hints
             self.assertFalse(any(t.startswith(("Estimated", "Wear the glasses")) for t in texts))
-            self.assertIn("Calibrated at 50 cm and saved to your profile", texts)
+            self.assertIn("Calibrated - saved to your profile", texts)   # the tick has no video glyph
 
     def test_a_saved_calibration_is_used_next_time_instead_of_the_formula(self):
         profiles.save(profiles.make("Sujan - glasses", "glasses", -7))
@@ -192,7 +193,7 @@ class DesktopPowerTest(TempProfilesFile):
         self.assertIn("Calibrated at 50 cm", r["printed"])
         self.assertNotIn("saved to profile", r["printed"])
         self.assertFalse(os.path.exists(profiles.PROFILES_PATH))
-        self.assertFalse(any(t.startswith(("Estimated", "Wear", "Sit 50")) for t in all_text(r)))
+        self.assertFalse(any(t.startswith(("Estimated", "Sit at", "then press")) for t in all_text(r)))
 
     def test_the_profile_safe_distance_sets_the_too_close_alert(self):
         plain = run_desktop(frames=6)                                     # 62 cm, limit 50

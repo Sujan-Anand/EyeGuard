@@ -348,7 +348,8 @@ def draw_overlay(frame, pts, state):
     cv2.rectangle(frame, (10, h - 22), (w - 10, h - 8), (60, 60, 60), -1)
     cv2.rectangle(frame, (10, h - 22), (10 + bar_w, h - 8), eg.level_color(score < 50), -1)
 
-    notes = [n.replace("press c", "click Calibrate distance") for n in state["notes"]]
+    notes = [n.replace("press C to calibrate", "click Calibrate distance")
+              .replace("press c", "click Calibrate distance") for n in state["notes"]]
     if notes:                                    # calibration help, on a dark strip
         strip = frame.copy()
         cv2.rectangle(strip, (0, h - 76 - 18 * len(notes)), (w, h - 72), (30, 30, 30), -1)

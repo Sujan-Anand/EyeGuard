@@ -27,8 +27,11 @@ if PROJECT not in sys.path:
     sys.path.insert(0, PROJECT)
 import background  # noqa: E402
 import eyeguard  # noqa: E402
+import profile_window  # noqa: E402
+import profiles  # noqa: E402
 
 WIDTH, HEIGHT = 640, 480
+REAL_LAST_USED_PATH = profiles.LAST_USED_PATH
 
 
 def _portrait():
@@ -70,11 +73,19 @@ AWAY = np.full((HEIGHT, WIDTH, 3), 128, np.uint8)      # nobody in view
 
 
 def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(),
-                stop_at=None, ctrl_c_at=None, mini_fails=False, break_every=None):
+                stop_at=None, ctrl_c_at=None, mini_fails=False, break_every=None,
+                picks=(), picker_fails=False, picker_takes=0.0):
     """Runs eyeguard.main() for `frames` frames and returns what happened:
 
     break_every sets how often a break is due, in seconds (normally 20 minutes),
     so a test can reach a break quickly.
+
+    The profile window never really opens. Each time the app asks for it, the
+    next entry of `picks` is the answer: ("use", profile), ("none", None) or
+    ("cancel", None); when the list runs out the answer is "Continue without
+    profile". picker_fails makes the window impossible to open, and
+    picker_takes is how many seconds the user spends in it.
+    picker   list of (frame number, name of the profile in use when it opened)
 
     Background mode (--background) gets a pretend notifier and mini window:
     stop_at presses the Stop button at that frame, ctrl_c_at presses Ctrl+C,
@@ -94,6 +105,14 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
     state = {"frame": -1, "t": 1_800_000_000.0}
     beeps, texts, banners = [], [], []
     toasts, mini, sleeps, shown, closed = [], [], [], [], []
+    picks, picker = list(picks), []
+
+    def fake_choose(current=None, path=None):
+        picker.append((state["frame"], current))
+        state["t"] += picker_takes
+        if picker_fails:
+            raise RuntimeError("no display")
+        return picks.pop(0) if picks else ("none", None)
 
     class FakeCamera:
         def __init__(self, index):
@@ -162,13 +181,17 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
     saved = (cv2.VideoCapture, cv2.imshow, cv2.waitKey, cv2.destroyAllWindows,
              cv2.rectangle, eyeguard.beep, eyeguard.put, eyeguard.time,
              sys.argv, sys.stdout, sys.stdin, os.getcwd(),
-             background.Notifier, background.MiniWindow, eyeguard.BREAK_EVERY_SECONDS)
+             background.Notifier, background.MiniWindow, eyeguard.BREAK_EVERY_SECONDS,
+             profile_window.choose, profiles.LAST_USED_PATH)
+    if profiles.LAST_USED_PATH == REAL_LAST_USED_PATH:      # never touch the real note
+        profiles.LAST_USED_PATH = os.path.join(tempfile.gettempdir(), "eyeguard_test_last_profile.txt")
     work = tempfile.mkdtemp(prefix="eyeguard_test_")
     out = io.StringIO()
     try:
         cv2.VideoCapture = FakeCamera
         cv2.imshow = lambda *a, **k: shown.append(state["frame"])
         background.Notifier, background.MiniWindow = FakeNotifier, FakeMini
+        profile_window.choose = fake_choose
         if break_every is not None:
             eyeguard.BREAK_EVERY_SECONDS = break_every
         cv2.waitKey = lambda *a, **k: ord(keys[state["frame"]]) if state["frame"] in keys else -1
@@ -186,6 +209,8 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
         os.chdir(saved[11])
         background.Notifier, background.MiniWindow = saved[12:14]
         eyeguard.BREAK_EVERY_SECONDS = saved[14]
+        profile_window.choose = saved[15]
+        profiles.LAST_USED_PATH = saved[16]
 
     header, rows = [], []
     for path in glob.glob(os.path.join(work, "logs", "session_*.csv")):
@@ -199,7 +224,7 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
     return {"beeps": beeps, "texts": texts[:frames], "banners": banners[:frames],
             "header": header, "rows": rows, "printed": out.getvalue(), "files": files,
             "toasts": toasts, "mini": mini, "shown": len(shown), "sleeps": sleeps,
-            "mini_closed": len(closed), "frames_read": state["frame"] + 1}
+            "mini_closed": len(closed), "frames_read": state["frame"] + 1, "picker": picker}
 
 
 def all_text(result):

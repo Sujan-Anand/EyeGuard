@@ -36,6 +36,8 @@ import unicodedata
 from datetime import date
 
 PROFILES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+# the profile used last time, so the start window can pre-select it (git-ignored too)
+LAST_USED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_profile.txt")
 
 CORRECTIONS = ("none", "glasses", "contacts")
 CORRECTION_LABELS = {"none": "no glasses or contacts", "glasses": "glasses",
@@ -43,6 +45,8 @@ CORRECTION_LABELS = {"none": "no glasses or contacts", "glasses": "glasses",
 POWER_MIN, POWER_MAX, POWER_STEP = -20.0, 20.0, 0.25
 DEFAULT_SAFE_DISTANCE_CM = 50        # same as MIN_SAFE_DISTANCE_CM in eyeguard.py
 MAX_SAFE_DISTANCE_CM = 100
+FORM_MAX_SAFE_DISTANCE_CM = 80       # the slider on the new-profile form goes from 50 to this
+POWER_HINT = "the number on your prescription, minus for short sight"
 LENS_DISTANCE_M = 0.015              # glasses sit about 15 mm in front of the eye
 HIGH_POWER_D = 6.0                   # at or above this, show the eye check-up reminder
 CALIBRATION_DISTANCE_CM = 50         # where you sit when you press c
@@ -187,10 +191,19 @@ def calibration_note(profile):
     """What to do before pressing c. None once the profile is calibrated."""
     if not profile or is_calibrated(profile):
         return None
-    if profile["correction"] == "none":
-        return f"Sit {CALIBRATION_DISTANCE_CM} cm away, then press c to calibrate distance."
-    return ("Wear the glasses or contacts you normally use at the computer, sit "
-            f"{CALIBRATION_DISTANCE_CM} cm away, then press c.")
+    wearing = "" if profile["correction"] == "none" else ", wearing what you entered"
+    return (f"Sit at arm's length (about {CALIBRATION_DISTANCE_CM} cm){wearing}, "
+            "then press C to calibrate")
+
+
+CALIBRATED_MESSAGE = "Calibrated \u2713 \u2014 saved to your profile"
+
+
+def calibration_status(profile):
+    """One line for the profile screens: when it was calibrated, or what to do."""
+    if is_calibrated(profile):
+        return f"Calibrated on {profile['calibrated_on']}"
+    return "Not calibrated \u2014 run the desktop app and press C"
 
 
 def high_power_note(profile):
@@ -251,6 +264,127 @@ def save(profile, path=None):
         if os.path.exists(part):
             os.remove(part)
     return profile
+
+
+def delete(name, path=None):
+    """Removes the saved profile with this name. True if there was one."""
+    path = path or PROFILES_PATH
+    everyone = load_all(path)
+    others = [p for p in everyone if name_key(p["name"]) != name_key(name)]
+    if len(others) == len(everyone):
+        return False
+    handle, part = tempfile.mkstemp(suffix=".json", dir=os.path.dirname(path) or ".")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as f:
+            json.dump({"version": 1, "profiles": others}, f, indent=2, ensure_ascii=False)
+        os.replace(part, path)
+    finally:
+        if os.path.exists(part):
+            os.remove(part)
+    return True
+
+
+# ------------------------------------------------ the profile window and form
+# The logic behind the start window (profile_window.py) and the My Profile
+# page. Nothing here opens a window, so it can be tested without a screen.
+def remember_last(name, path=None):
+    """Notes which profile was used, so it is pre-selected next time."""
+    try:
+        with open(path or LAST_USED_PATH, "w", encoding="utf-8") as f:
+            f.write(" ".join(str(name).split()))
+    except OSError:
+        pass                                     # only a convenience: never stop the app
+
+
+def last_used(path=None):
+    """The name noted by remember_last(), or None."""
+    try:
+        with open(path or LAST_USED_PATH, encoding="utf-8") as f:
+            return f.read().strip() or None
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def picker_choices(path=None, last_path=None):
+    """What the start window lists: (saved profiles, index to pre-select).
+    The index is the profile used last time, else the first one, or None when
+    nothing is saved yet. A damaged profiles.json counts as no profiles."""
+    try:
+        saved = load_all(path)
+    except ValueError:
+        saved = []
+    if not saved:
+        return [], None
+    last = last_used(last_path)
+    for index, profile in enumerate(saved):
+        if last and name_key(profile["name"]) == name_key(last):
+            return saved, index
+    return saved, 0
+
+
+def needs_power(correction):
+    """The lens power is only asked for glasses and contact lenses."""
+    return correction in ("glasses", "contacts")
+
+
+def step_power(power, steps):
+    """The lens power after pressing + (steps = 1) or - (steps = -1): moves in
+    quarter dioptres and stops at -20 and +20."""
+    try:
+        power = float(power)
+    except (TypeError, ValueError):
+        power = 0.0
+    moved = round(power / POWER_STEP) * POWER_STEP + steps * POWER_STEP
+    return min(POWER_MAX, max(POWER_MIN, moved)) + 0.0
+
+
+def power_text(power):
+    """How the form shows the power: "0.00", "-2.25", "+1.50"."""
+    return "0.00" if not power else f"{power:+.2f}"
+
+
+def check_form(name, correction, power=0.0, safe_distance_cm=DEFAULT_SAFE_DISTANCE_CM, path=None,
+               saved=None):
+    """Checks the new-profile form. Returns one of
+        ("ok", profile)            ready to save
+        ("error", message)         a friendly sentence to show under the form
+        ("duplicate", existing)    a profile with this name is already saved
+    `saved` is the list of profiles to compare with (default: the saved file)."""
+    if not " ".join(str(name).split()):
+        return "error", "Please give the profile a name, for example \"Sujan - glasses\"."
+    if correction not in CORRECTIONS:
+        return "error", "Please choose what you wear: Nothing, Glasses or Contact lenses."
+    try:
+        profile = make(name, correction, power if needs_power(correction) else 0.0,
+                       safe_distance_cm)
+    except ValueError as err:
+        message = str(err)
+        return "error", "Please check the form: " + message + "."
+    try:
+        known = load_all(path) if saved is None else saved
+    except ValueError:
+        known = []                               # a damaged file is replaced on save
+    existing = next((p for p in known if name_key(p["name"]) == name_key(profile["name"])), None)
+    if existing:
+        return "duplicate", existing
+    return "ok", profile
+
+
+def create_from_form(name, correction, power=0.0, safe_distance_cm=DEFAULT_SAFE_DISTANCE_CM,
+                     path=None, last_path=None):
+    """check_form(), then saves a good profile and notes it as the last used.
+    Returns the same pairs as check_form()."""
+    result, value = check_form(name, correction, power, safe_distance_cm, path)
+    if result == "ok":
+        try:
+            value = save(value, path)
+        except ValueError:                       # profiles.json is damaged: start it again
+            os.replace(path or PROFILES_PATH, (path or PROFILES_PATH) + ".damaged")
+            value = save(value, path)
+        except OSError as err:
+            return "error", f"The profile could not be saved ({err})."
+        remember_last(value["name"], last_path)
+    return result, value
 
 
 # ----------------------------------------------------- terminal questionnaire

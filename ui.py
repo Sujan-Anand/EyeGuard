@@ -174,6 +174,12 @@ CSS = f"""
 [data-testid="stTooltipHoverTarget"] button::after {{ content: ""; position: absolute; inset: -14px; }}
 /* The link icon beside each heading is too small to tap and not needed. */
 [data-testid="stHeaderActionElements"] {{ display: none; }}
+/* My Profile: the three "what do you wear" choices are big buttons. */
+[class*="st-key-wear_"] button {{ min-height: 4.2rem; }}
+[class*="st-key-wear_"] button p {{ font-size: 1.08rem; font-weight: 700; }}
+/* The - and + of the lens power stepper are finger-sized too. */
+[data-testid="stNumberInputStepDown"], [data-testid="stNumberInputStepUp"] {{
+    min-width: {TAP}; min-height: {TAP}; }}
 /* Commands such as "py eyeguard.py --mute" stay readable inside small print. */
 [data-testid="stMain"] code {{ font-size: 0.875rem; overflow-wrap: anywhere; }}
 

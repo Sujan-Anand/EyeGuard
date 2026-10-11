@@ -1,5 +1,6 @@
 logs/
 profiles.json
+last_profile.txt
 .venv/
 __pycache__/
 *.task

@@ -17,6 +17,17 @@ It has two parts:
 
 People blink about 15-20 times a minute normally, but only about 5-7 times a minute while looking at a screen. Students also lean in closer as they concentrate and skip breaks. The result is dry, tired eyes and headaches, and long hours of close-up work are a known risk factor for myopia. EyeGuard makes these habits visible and nudges you to fix them.
 
+## Getting started in 30 seconds
+
+1. Double-click **`EyeGuard.bat`** in the project folder.
+2. In the small window that opens, click **+ New profile**.
+3. Type a name, pick what you wear (Nothing, Glasses or Contact lenses), and click **Save & start**.
+4. When the video appears, sit at arm's length (about 50 cm) and press C to calibrate.
+
+That is all. Next time, your profile is already selected: just press **Start**. `EyeGuard Background.bat` does the same but runs with no video window (see Background mode below).
+
+If the window says Python was not found, do the Setup below once.
+
 ## Setup
 
 You need Python 3.10 or newer (built and tested on 3.14) and a webcam.
@@ -37,15 +48,18 @@ The first run downloads a small face model (`face_landmarker.task`, about 4 MB),
 ## Run the desktop app
 
 ```
-py eyeguard.py              # a break is due every 20 minutes
+py eyeguard.py              # opens the profile window, then the video
+py eyeguard.py --no-profile # skip the profile window and start without a profile
 py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
 py eyeguard.py --test-sound # play each alert sound once and exit
-py eyeguard.py --profile "Sujan - glasses"   # use or create a saved profile
+py eyeguard.py --profile "Sujan - glasses"   # go straight to a saved profile
 py eyeguard.py --background # no video window: notifications and a small box (see below)
 ```
 
-Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off
+Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off · `p` switch profile
+
+A break is due every 20 minutes. Double-clicking `EyeGuard.bat` is the same as `py eyeguard.py`.
 
 Alerts and breaks play a sound, with at least 15 seconds between repeats of the same alert. Each sound is a tone followed by a Windows system sound, because some laptops do not play the plain tone. Sounds play in the background, so the video does not pause. If you hear nothing, run `py eyeguard.py --test-sound` and check the Windows volume and output device. On the website, Live Check has an optional **Sound alerts** switch that beeps in the browser. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
 
@@ -74,11 +88,24 @@ Calibrating needs the video window, so run once without `--background` and press
 
 A profile records who is using EyeGuard and what they wear at the computer.
 
+**The profile window.** When you start EyeGuard without `--profile`, a small window opens before the camera starts:
+
+- It lists your saved profiles, with the one you used last time already selected. Click one and press **Start**.
+- **+ New profile** opens a one-screen form: a name, three big buttons (Nothing / Glasses / Contact lenses), the lens power, and a safe-distance slider from 50 to 80 cm. The lens power only appears for glasses and contact lenses; change it with the − and + buttons in steps of 0.25 (it is the number on your prescription, minus for short sight). **Save & start** saves the profile and starts.
+- If the name is empty you are told so; if a profile with that name already exists you are asked whether to use it.
+- **Continue without profile** starts EyeGuard with the usual 50 cm and no lens correction. Closing the window does not start EyeGuard.
+
+**Guided calibration.** A new profile is not calibrated yet, so the video shows `Sit at arm's length (about 50 cm), wearing what you entered, then press C to calibrate`. After you press C it confirms `Calibrated ✓ — saved to your profile` and does not ask again. In background mode there is no video, so run once normally to calibrate.
+
+**Switching.** Press `p` in the video window to open the profile window again. The profile you pick applies straight away (distance correction, safe distance, saved calibration) without restarting. Closing the window keeps the current profile.
+
+**From the command line.** This still works and skips the window:
+
 ```
 py eyeguard.py --profile "Sujan - glasses"
 ```
 
-The first time you use a name, EyeGuard asks three short questions in the terminal and saves the answers. After that the same command loads the profile straight away. The name and what you wear appear beside the EyeGuard title on the panel.
+If the name is new, EyeGuard asks three short questions in the terminal and saves the answers. The name and what you wear appear beside the EyeGuard title on the panel.
 
 | Saved for each profile | Values |
 |---|---|
@@ -104,16 +131,16 @@ corrected distance = raw distance x m
 At -7.00 D, m is about 0.905: the eye looks about 10% smaller, and a raw reading of 60 cm becomes 54 cm. For contact lenses and for no correction, m = 1.
 
 - **Before you calibrate**, a glasses profile uses the formula and the screen says `Estimated for -7.00 D glasses - press c to calibrate for best accuracy`.
-- **To calibrate**, wear the glasses or contacts you normally use at the computer, sit 50 cm away, then press `c`. The result is saved in the profile and used every time after that. A calibration made with your glasses on already includes the lens, so the formula is no longer applied. Calibrate again if you change camera.
+- **To calibrate**, wear the glasses or contacts you normally use at the computer, sit at arm's length (about 50 cm), then press `c`. The result is saved in the profile and used every time after that. A calibration made with your glasses on already includes the lens, so the formula is no longer applied. Calibrate again if you change camera.
 - **Safe distance:** the "Too close" alert and the strain score use the profile's safe distance instead of 50 cm.
 - **Glare:** with a glasses profile, if the eye readings jump about for about 2 seconds, EyeGuard asks `Glare on your glasses? Reduce light behind you or tilt the screen.`
 - **Strong lenses:** at 6 D or more, EyeGuard shows one reminder per session to get a full eye check-up regularly.
 
-On the website, set the same things on the **My Profile** page. Live Check then corrects the distance, uses your safe distance, shows the glare warning, and its **Calibrate distance** button stores the calibration in the profile. A website profile lasts for that browser tab. When you run the website on your own laptop, the page can also load the profiles saved by the desktop app and save back to them.
+On the website, the **My Profile** page has the same simple form: a name, three big buttons, the lens power only when it is needed, and the safe-distance slider, with **Save** and **Delete** (it asks first). A dropdown chooses the active profile, and the page shows `Calibrated on <date>` or `Not calibrated — run the desktop app and press C`. Live Check then corrects the distance, uses your safe distance, shows the glare warning, and its **Calibrate distance** button stores the calibration in the profile. On the public website your profiles stay in that browser tab. When you run the website on your own laptop, the page reads and writes the same `profiles.json` as the desktop app.
 
 Limits: the formula uses the spherical power only and ignores astigmatism (cylinder). It assumes the lens sits 15 mm from the eye. EyeGuard cannot measure or diagnose eye power; it only uses the number you enter, and nothing here is medical advice.
 
-Profiles are stored in `profiles.json` in the project folder. To change a profile, edit that file or delete its entry and answer the questions again. EyeGuard cannot measure or diagnose eye power; it only stores the number you type. Without `--profile`, EyeGuard works exactly as before.
+Profiles are stored in `profiles.json` in the project folder, and the name of the one you used last in `last_profile.txt`. To change or delete a profile, use the My Profile page of the website on your laptop. EyeGuard cannot measure or diagnose eye power; it only stores the number you enter. With **Continue without profile** or `--no-profile`, EyeGuard works exactly as it does with no profile.
 
 Each run saves `logs/session_<date>_<time>.csv`. To get a report from the command line:
 
@@ -134,7 +161,7 @@ It opens at http://localhost:8501.
 |---|---|
 | Home | "Blink more. Sit back. Look away." with buttons to start a live check or open a sample session, the problem, how EyeGuard works in three steps, and the SDGs it supports. |
 | Live Check | Webcam check in the browser with the numbers, alerts and 20-20-20 break drawn on the video. Also has a single-photo mode. Uses your profile if you have set one. |
-| My Profile | What you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them. |
+| My Profile | Make, edit, choose and delete profiles: what you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them and whether the profile is calibrated. |
 | Session Dashboard | Number cards with units and a status in words (for example "Below normal", "One missed"), interactive charts with labelled limit lines, tips as cards with the most important first, and downloads for one session. Pick a CSV from `logs/`, upload one, or load a sample session. |
 | Insights | All sessions together: blink rate by hour of the day, strain trend, best and worst session. |
 | About | Formulas, future scope and the AI usage disclosure. |
@@ -203,7 +230,9 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `sample_data.py` | Makes realistic sample sessions. |
 | `app.py` | Website entry point and Home page. |
 | `pages/` | Live Check, My Profile, Session Dashboard, Insights and About pages. |
-| `profiles.py` | Profiles: what is saved, the terminal questions, and the lens formula. |
+| `profiles.py` | Profiles: what is saved, the lens formula, the checks behind the profile form, and the terminal questions. |
+| `profile_window.py` | The small profile window of the desktop app: pick a profile, make a new one, or continue without. |
+| `EyeGuard.bat`, `EyeGuard Background.bat` | Double-click launchers for Windows: the normal app and background mode. |
 | `background.py` | Background mode for the desktop app: the Windows notifications and the small always-on-top box. |
 | `live.py` | Keeps the live session between video frames for the Live Check page and draws the overlay. |
 | `sessions.py` | Finds, loads and checks session CSVs; combines sessions for Insights. |
@@ -212,7 +241,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `requirements.txt`, `packages.txt` | For Streamlit Cloud. |
 | `requirements-desktop.txt` | For your laptop. |
 
-`logs/` (your recorded sessions) and `profiles.json` (your saved settings) stay on your laptop. Git ignores both, so they are never uploaded to GitHub.
+`logs/` (your recorded sessions), `profiles.json` (your saved profiles) and `last_profile.txt` (the profile you used last) stay on your laptop. Git ignores them, so they are never uploaded to GitHub.
 
 ## Tests
 
@@ -220,7 +249,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 py -m unittest discover -s tests -v
 ```
 
-The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute), the two blink alert levels, profiles, the glasses correction (lens formula, saved calibration, safe distance, glare warning), and background mode (notifications, the break with a pause, the pause when nobody is there, the Stop button and Ctrl+C).
+The tests run the real desktop loop with a simulated camera, clock and keyboard, so they need no webcam. They cover the break timer (pause and continue, glances, one beep per pause, mute), the two blink alert levels, profiles, the glasses correction (lens formula, saved calibration, safe distance, glare warning), background mode (notifications, the break with a pause, the pause when nobody is there, the Stop button and Ctrl+C), and profile setup (the start window's choices, the new-profile form, duplicate names, the last-used profile, switching with `p`, and the launchers). No test opens a real profile window.
 
 ## Future scope
 
