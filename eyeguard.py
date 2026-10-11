@@ -1,6 +1,6 @@
 """
 EyeGuard - Smart Eye Strain Monitor for Students
-PySustain-2026 | Track 1: Code to Cure | SDG 3.4
+SDG 3.4
 
 Uses your webcam + MediaPipe Face Mesh to track:
   * Blink rate (Eye Aspect Ratio)          -> warns below 7/min, strong alert below 5/min
@@ -14,7 +14,7 @@ Uses your webcam + MediaPipe Face Mesh to track:
   * Live Eye Strain Score (0-100), logged to CSV for report.py
 
 Run:   python eyeguard.py            (normal: break every 20 min)
-       python eyeguard.py --demo     (break every 60 s - for the judges' demo)
+       python eyeguard.py --demo     (break every 60 s)
        python eyeguard.py --mute     (start with the sound off)
        python eyeguard.py --test-sound   (play each alert sound once, then exit)
        python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)

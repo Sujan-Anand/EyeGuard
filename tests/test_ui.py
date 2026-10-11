@@ -33,7 +33,7 @@ def showcase():
     ui.hero("Blink more. Sit back. Look away.", "A <smart> monitor.", "SDG 3.4")
     ui.info_cards([dict(badge=1, title="It watches", text="Finds 478 points."),
                    dict(icon="school", tag="Secondary goal", title="SDG 4", text="Learning.")])
-    ui.footer("Team Dark Fantasy")
+    ui.footer("Built by Sujan Anand")
     ui.kpi_card("Average blink rate", "6.3", "/ min", status="Below normal", kind="warn",
                 note="Healthy is 15-20")
     ui.kpi_row([dict(label="Duration", value="60", unit="min"),
@@ -152,7 +152,7 @@ class BlocksTest(unittest.TestCase):
         self.assertEqual(cards.count("eg-card eg-info"), 2)
         self.assertIn('<div class="eg-step">1</div>', cards)
         self.assertIn("Secondary goal", cards)
-        self.assertIn("Team Dark Fantasy", self.block("eg-footer\""))
+        self.assertIn("Built by Sujan Anand", self.block("eg-footer\""))
 
     def test_the_logo_and_sidebar_highlight(self):
         self.assertIn("EyeGuard", ui.LOGO)

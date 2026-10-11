@@ -1,6 +1,6 @@
 """
 EyeGuard website - entry point and Home page.
-PySustain-2026 | Track 1: Code to Cure | SDG 3.4
+SDG 3.4
 
 Run locally:   py -m streamlit run app.py
 """
@@ -16,15 +16,14 @@ st.set_page_config(page_title="EyeGuard", page_icon="👁️", layout="wide")
 ui.apply_theme()                     # shared colours, type and card styles (ui.py)
 ui.sidebar_brand()                   # EyeGuard logo at the top of the sidebar
 
-TEAM = ("Team Dark Fantasy \u2014 Sujan Anand, Dhayanithi S V, Padhmesh N, Akshaith P "
-        "\u00b7 PySustain-2026")
+TEAM = "Built by Sujan Anand, Dhayanithi S V, Padhmesh N, Akshaith P"
 
 
 def home():
     ui.hero("Blink more. Sit back. Look away.",
             "EyeGuard uses your webcam to notice when you blink too little, sit too "
             "close or skip your breaks, and nudges you before your eyes get tired.",
-            "PYSUSTAIN-2026 \u00b7 TRACK 1: CODE TO CURE \u00b7 SDG 3.4")
+            "SMART EYE STRAIN MONITOR \u00b7 SDG 3.4")
     with st.container(horizontal=True):
         if st.button("Start live check", type="primary", icon=":material/videocam:"):
             st.switch_page(live_page)
@@ -90,6 +89,6 @@ page = st.navigation([home_page, live_page, profile_page, dashboard_page, insigh
                       about_page])
 
 with st.sidebar:
-    st.caption("PySustain-2026 · Track 1: Code to Cure\n\nAn awareness tool, not a medical device.")
+    st.caption("An awareness tool, not a medical device.")
 
 page.run()

@@ -1,4 +1,4 @@
-"""About - tech stack, formulas, future scope, AI usage disclosure and disclaimer."""
+"""About - formulas, future scope, AI usage disclosure and disclaimer."""
 
 import streamlit as st
 
@@ -12,24 +12,6 @@ st.warning("**EyeGuard is an awareness tool, not a medical device.** It does not
            "diagnose or treat any condition. See an eye doctor if you have ongoing "
            "eye discomfort, headaches or blurred vision.", icon=":material/health_and_safety:")
 
-# ------------------------------------------------------------------ tech stack
-st.header("Tech stack")
-st.write("Everything is written in Python.")
-st.table({
-    "Part": ["Camera and drawing", "Face landmarks", "Maths", "Session logs and reports",
-             "Website", "Live video in the browser", "Interactive charts"],
-    "Library": ["OpenCV", "MediaPipe Face Landmarker", "NumPy", "pandas, matplotlib",
-                "Streamlit", "streamlit-webrtc (WebRTC)", "Plotly"],
-    "What it does here": [
-        "Reads webcam frames, measures brightness, draws the numbers on the video.",
-        "Finds 478 points on the face in every frame, including each eyelid and iris.",
-        "Distances and angles between those points.",
-        "One row per second is saved to a CSV; reports and tips are built from it.",
-        "These pages: Home, Live Check, My Profile, Session Dashboard, Insights, About.",
-        "Sends webcam video from the browser to Python and back with the overlay.",
-        "The dashboard and insights charts.",
-    ],
-})
 st.caption("Privacy: video is analysed frame by frame in memory and is never saved "
            "or uploaded anywhere else. Only the numbers are kept.")
 
@@ -174,8 +156,8 @@ with f3, st.container(border=True):
 # ---------------------------------------------------------- AI usage disclosure
 st.header("AI usage disclosure")
 st.info(
-    "This project was built by our team for PySustain-2026. We used AI assistants "
-    "(Claude) to help write and debug parts of the code and documentation. The "
+    "EyeGuard was built by Sujan Anand, Dhayanithi S V, Padhmesh N and Akshaith P. "
+    "We used AI assistants (Claude) to help write and debug parts of the code and documentation. The "
     "project idea, feature design, testing, calibration and presentation were done "
     "by our team, and every member can explain how the code works.",
     icon=":material/smart_toy:")
@@ -189,5 +171,4 @@ with a2, st.container(border=True):
                 "- Real-webcam testing\n- The demo")
 
 st.divider()
-st.caption("EyeGuard · PySustain-2026 · Track 1: Code to Cure · SDG 3.4 · "
-           "Awareness tool, not a medical device.")
+st.caption("EyeGuard · SDG 3.4 · Awareness tool, not a medical device.")

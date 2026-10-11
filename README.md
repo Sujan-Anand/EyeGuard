@@ -1,6 +1,6 @@
 # EyeGuard – Smart Eye Strain Monitor for Students
 
-PySustain-2026 · Track 1: Code to Cure · SDG 3.4 (primary), SDG 4 (secondary)
+SDG 3.4 (primary), SDG 4 (secondary)
 
 EyeGuard uses a webcam and Python to watch for eye strain while you work at a screen. It tracks blink rate, distance from the screen, drowsiness, head tilt and room lighting, enforces the 20-20-20 rule with a break that the camera verifies, and gives a live Eye Strain Score from 0 to 100.
 
@@ -37,7 +37,7 @@ The first run downloads a small face model (`face_landmarker.task`, about 4 MB),
 ## Run the desktop app
 
 ```
-py eyeguard.py --demo       # break every 60 s (use this in front of judges)
+py eyeguard.py --demo       # break every 60 s
 py eyeguard.py              # normal: break every 20 min
 py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
@@ -138,7 +138,7 @@ It opens at http://localhost:8501.
 | My Profile | What you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them. |
 | Session Dashboard | Number cards with units and a status in words (for example "Below normal", "One missed"), interactive charts with labelled limit lines, tips as cards with the most important first, and downloads for one session. Pick a CSV from `logs/`, upload one, or generate a demo session. |
 | Insights | All sessions together: blink rate by hour of the day, strain trend, best and worst session. |
-| About | Tech stack, formulas, future scope and the AI usage disclosure. |
+| About | Formulas, future scope and the AI usage disclosure. |
 
 ## Deploy the website (Streamlit Community Cloud, free)
 
@@ -231,7 +231,7 @@ The tests run the real desktop loop with a simulated camera, clock and keyboard,
 
 ## AI usage disclosure
 
-This project was built by our team for PySustain-2026. We used AI assistants (Claude) to help write and debug parts of the code and documentation. The project idea, feature design, testing, calibration and presentation were done by our team, and every member can explain how the code works.
+EyeGuard was built by Sujan Anand, Dhayanithi S V, Padhmesh N and Akshaith P. We used AI assistants (Claude) to help write and debug parts of the code and documentation. The project idea, feature design, testing, calibration and presentation were done by our team, and every member can explain how the code works.
 
 | AI-assisted | Done by the team |
 |---|---|
