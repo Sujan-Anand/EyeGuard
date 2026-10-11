@@ -30,6 +30,7 @@ TEAL = "#4FB3A9"             # charts, links, icons
 ALERT = "#F26B5B"            # strong alerts only
 GOOD = "#5CC08A"
 ON_AMBER = "#0B1F21"         # text on an amber button
+DISABLED = "#8AA5A1"         # text on a greyed-out button: dimmer, but still readable
 
 # Each status: (background, text, icon, default word, accent). Text on its
 # background is at least 4.5:1 (checked in tests/test_ui.py).
@@ -106,6 +107,12 @@ CSS = f"""
 [data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] p {{
     color: {ON_AMBER} !important; font-weight: 700;
 }}
+/* Greyed-out buttons were too faint to read on the dark page (3.4:1). */
+[data-testid="stMain"] button:disabled, [data-testid="stMain"] button:disabled p,
+[data-testid="stMain"] button:disabled span {{
+    color: {DISABLED} !important; opacity: 1;
+}}
+[data-testid="stMain"] button:disabled {{ border-style: dashed; }}
 </style>
 """
 

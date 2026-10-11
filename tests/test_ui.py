@@ -57,7 +57,9 @@ class ContrastTest(unittest.TestCase):
                  "teal links on page": (ui.TEAL, ui.BACKGROUND), "teal on card": (ui.TEAL, ui.SURFACE),
                  "amber on page": (ui.AMBER, ui.BACKGROUND), "amber on card": (ui.AMBER, ui.SURFACE),
                  "alert red on page": (ui.ALERT, ui.BACKGROUND), "alert red on card": (ui.ALERT, ui.SURFACE),
-                 "good green on card": (ui.GOOD, ui.SURFACE)}
+                 "good green on card": (ui.GOOD, ui.SURFACE),
+                 "greyed-out button text on page": (ui.DISABLED, ui.BACKGROUND),
+                 "greyed-out button text on card": (ui.DISABLED, ui.SURFACE)}
         for name, (text, background) in pairs.items():
             self.assertGreaterEqual(contrast(text, background), 4.5, name)
 
