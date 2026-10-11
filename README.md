@@ -41,12 +41,13 @@ py eyeguard.py --demo       # break every 60 s (use this in front of judges)
 py eyeguard.py              # normal: break every 20 min
 py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
+py eyeguard.py --test-sound # play each alert sound once and exit
 py eyeguard.py --profile "Sujan - glasses"   # use or create a saved profile
 ```
 
 Keys: `q` quit · `c` calibrate distance · `b` start a break now · `r` reset · `m` sound on/off
 
-Alerts and breaks beep, with at least 15 seconds between repeats of the same alert. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
+Alerts and breaks play a sound, with at least 15 seconds between repeats of the same alert. Each sound is a tone followed by a Windows system sound, because some laptops do not play the plain tone. Sounds play in the background, so the video does not pause. If you hear nothing, run `py eyeguard.py --test-sound` and check the Windows volume and output device. On the website, Live Check has an optional **Sound alerts** switch that beeps in the browser. Press `m` to switch the sound off or on at any time. The bottom line of the panel shows `m sound ON` or `m sound OFF`. Muting only silences the beeps: alerts still appear on screen and in the log.
 
 **Calibrate once:** sit exactly 50 cm (about arm's length) from the webcam and press `c`. Distance readings are much more accurate after this.
 

@@ -105,7 +105,7 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
         def time():
             return state["t"]
 
-    def fake_beep(freq=1000, ms=300):
+    def fake_beep(freq=1000, ms=300, *args, **kwargs):
         beeps.append((state["frame"], "short" if ms < 300 else "long"))
 
     real_put, real_rectangle = eyeguard.put, cv2.rectangle

@@ -16,6 +16,7 @@ Uses your webcam + MediaPipe Face Mesh to track:
 Run:   python eyeguard.py            (normal: break every 20 min)
        python eyeguard.py --demo     (break every 60 s - for the judges' demo)
        python eyeguard.py --mute     (start with the sound off)
+       python eyeguard.py --test-sound   (play each alert sound once, then exit)
        python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)
 Keys:  q = quit   c = calibrate distance (sit 50 cm away first)
        b = start a break now   r = reset session counters   m = sound on/off
@@ -26,6 +27,7 @@ import csv
 import math
 import os
 import sys
+import threading
 import time
 import urllib.request
 from collections import deque
@@ -252,15 +254,72 @@ class BreakTimer:
         return f"Look away to start the timer {progress}", "warn"
 
 
-def beep(freq=1000, ms=300):
+# The three sounds: (tone in Hz, length in ms, Windows system sound played as well)
+SOUNDS = {
+    "alert": (1000, 300, "SystemExclamation"),   # an alert, or a break starting
+    "pause": (800, 150, "SystemDefault"),        # looked back during a break
+    "done": (1200, 300, "SystemAsterisk"),       # break finished
+}
+_sound_warning_shown = False
+
+
+def _play(freq, ms, alias):
+    """Plays one sound. Runs in its own thread so the video never waits for it."""
+    global _sound_warning_shown
+    problems = []
     try:
-        if sys.platform.startswith("win"):
-            import winsound
-            winsound.Beep(freq, ms)
-        else:
-            print("\a", end="", flush=True)
-    except Exception:
-        pass
+        import winsound
+    except ImportError as err:
+        problems.append(f"winsound is not available ({err})")
+    else:
+        heard = False
+        try:
+            winsound.Beep(freq, ms)                  # a plain tone
+            heard = True
+        except Exception as err:
+            problems.append(f"Beep: {err}")
+        try:                                         # some laptops ignore Beep(), so also
+            winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)  # a system sound
+            heard = True
+        except Exception as err:
+            problems.append(f"PlaySound: {err}")
+            try:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+                heard = True
+            except Exception as err2:
+                problems.append(f"MessageBeep: {err2}")
+        if heard:
+            return
+    if not _sound_warning_shown:                     # say so once, not on every alert
+        _sound_warning_shown = True
+        print("Warning: EyeGuard could not play a sound (" + "; ".join(problems) + "). "
+              "Alerts still appear on screen.")
+
+
+def beep(freq=1000, ms=300, alias="SystemExclamation", wait=False):
+    """Plays a tone and a Windows system sound without holding up the video.
+    wait=True returns only when the tone has finished (used by --test-sound)."""
+    if not sys.platform.startswith("win"):
+        print("\a", end="", flush=True)
+        return
+    player = threading.Thread(target=_play, args=(freq, ms, alias), daemon=True)
+    player.start()
+    if wait:
+        player.join()
+
+
+def test_sound():
+    """py eyeguard.py --test-sound: plays each sound once so you can check you hear them."""
+    print("EyeGuard sound test. You should hear three sounds, each a tone followed "
+          "by a Windows system sound.")
+    for number, (kind, what) in enumerate([("alert", "alert / break starting"),
+                                           ("pause", "break paused (you looked back)"),
+                                           ("done", "break done")], start=1):
+        print(f"  {number}. {what}")
+        beep(*SOUNDS[kind], wait=True)
+        time.sleep(1.0)
+    print("Heard nothing? Check the volume is up and not muted, and that the right "
+          "speaker or headphones are selected in Windows sound settings.")
 
 
 # ------------------------------------------------------------- drawing
@@ -338,6 +397,8 @@ def main():
     ap.add_argument("--demo", action="store_true", help="break every 60 s instead of 20 min")
     ap.add_argument("--camera", type=int, default=CAMERA_INDEX)
     ap.add_argument("--mute", action="store_true", help="start with the sound off (m toggles it)")
+    ap.add_argument("--test-sound", action="store_true",
+                    help="play each alert sound once and exit")
     ap.add_argument("--profile", metavar="NAME",
                     help='use a saved profile, or create it with three questions, '
                          'e.g. --profile "Sujan - glasses"')
@@ -346,6 +407,10 @@ def main():
     for stream in (sys.stdout, sys.stderr):      # a name the terminal cannot show
         if hasattr(stream, "reconfigure"):       # prints as "?" instead of stopping
             stream.reconfigure(errors="replace")
+
+    if args.test_sound:
+        test_sound()
+        return
 
     profile = None                      # None = no profile: everything works as before
     if args.profile:
@@ -408,9 +473,9 @@ def main():
     if profiles.high_power_note(profile):               # once per session, first 10 seconds
         notices.append((profiles.high_power_note(profile), session_start + 10))
 
-    def sound(short=False):
+    def sound(kind="alert"):
         if sound_on:
-            beep(800, 150) if short else beep()
+            beep(*SOUNDS[kind])
 
     def alert(key, msg, level="alert"):
         nonlocal current_alert, alert_level
@@ -489,10 +554,10 @@ def main():
         if on_break:
             event = break_timer.update(looking_away, now)
             if event == "paused":         # looked back at the screen: one short beep
-                sound(short=True)
+                sound("pause")
             elif event == "done":
                 on_break, last_break_end = False, now
-                sound()
+                sound("done")
 
         # ---------------- alerts (only when not on break)
         if not on_break and face:

@@ -24,6 +24,23 @@ TURN_SECRET_KEYS = ("HF_TOKEN", "CLOUDFLARE_TURN_KEY_ID")
 SLOW_CONNECT_SECONDS = 15
 MIN_ROWS_TO_SAVE = 5
 HIGH_POWER_NOTE_SECONDS = 30
+SOUND_REPEAT_SECONDS = 15           # same gap between repeats as the desktop app
+# A short beep made by the browser itself (Web Audio), so no sound file is needed.
+BEEP_SCRIPT = """<script>
+(function () {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = window.eyeguardAudio || (window.eyeguardAudio = new Ctx());
+    ctx.resume();
+    const tone = ctx.createOscillator(), volume = ctx.createGain();
+    tone.frequency.value = %d;
+    volume.gain.setValueAtTime(0.25, ctx.currentTime);
+    volume.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + %f);
+    tone.connect(volume); volume.connect(ctx.destination);
+    tone.start(); tone.stop(ctx.currentTime + %f);
+  } catch (err) { console.warn("EyeGuard sound: " + err); }
+})();
+</script><!-- %s -->"""
 
 st.title("Live Check")
 st.caption("Check your blink rate, screen distance and eye strain live, in the browser. "
@@ -97,6 +114,11 @@ with st.container(border=True):
         help="Live video measures everything. Single photo is a backup for networks "
              "that block live video: it checks distance, head tilt and lighting.")
     if mode != "Single photo":
+        sound_alerts = st.toggle(
+            "Sound alerts", value=False,
+            help="Plays a short beep in the browser when an alert appears, when a break "
+                 "starts or finishes, and once when you look back during a break. "
+                 "Browsers only allow sound after you have clicked on the page.")
         pace = st.segmented_control(
             "20-20-20 break", ["Demo: every 60 seconds", "Normal: every 20 minutes"],
             default="Demo: every 60 seconds",
@@ -187,6 +209,29 @@ else:
     st.session_state.pop("connect_started", None)
 
 
+def play_sound_for(s):
+    """Beeps in the browser when something new happens: an alert appears (repeating
+    at most every 15 s), a break starts or finishes, or the break timer pauses."""
+    now = time.time()
+    was = st.session_state.get("sound_state", {})
+    event = None
+    if s["on_break"] and not was.get("on_break"):
+        event = ("alert", 1000, 0.30)                       # break starting
+    elif was.get("on_break") and not s["on_break"]:
+        event = ("done", 1200, 0.30)                        # break finished
+    elif s["on_break"] and s["break_state"] == "paused" and was.get("break_state") != "paused":
+        event = ("pause", 800, 0.15)                        # looked back at the screen
+    elif s["alert"] and not s["on_break"]:
+        kind = s["alert"].split("!")[0].split("?")[0][:20]  # "Too close", "Blink more", ...
+        if now - was.get("alerts", {}).get(kind, 0) > SOUND_REPEAT_SECONDS:
+            was.setdefault("alerts", {})[kind] = now
+            event = ("alert", 1000, 0.30)
+    was.update(on_break=s["on_break"], break_state=s["break_state"])
+    st.session_state["sound_state"] = was
+    if event:
+        st.html(BEEP_SCRIPT % (event[1], event[2], event[2], now), unsafe_allow_javascript=True)
+
+
 @st.fragment(run_every=1.0 if (playing or connecting) else None)
 def live_numbers():
     """Refreshes once a second while the video is running."""
@@ -201,6 +246,8 @@ def live_numbers():
     if s is None:
         st.caption("Your numbers appear here once the video starts.")
         return
+    if sound_alerts and tracker.is_running():
+        play_sound_for(s)
     with st.container(horizontal=True):
         st.metric("Blinks per minute",
                   "measuring…" if s["measuring"] else f"{s['blink_rate']:.1f}", border=True,
