@@ -126,7 +126,13 @@ class WebsiteDoesNotNeedItTest(unittest.TestCase):
                               text=True, timeout=120)
         self.assertEqual(done.stdout.strip().splitlines()[-1], "[]", done.stderr[-500:])
         with open(os.path.join(project, "requirements.txt"), encoding="utf-8") as f:
-            self.assertNotIn("winotify", f.read())               # the cloud build stays as it was
+            cloud = f.read()
+        self.assertNotIn("winotify", cloud)                      # Windows-only: never on the cloud
+        self.assertNotIn("tk", cloud.lower().replace("streamlit-webrtc", ""))
+        packages = [line.split("==") for line in cloud.splitlines() if line and not line.startswith("#")]
+        self.assertTrue(all(len(p) == 2 for p in packages), packages)     # every package pinned
+        versions = dict(packages)
+        self.assertEqual(versions["opencv-python-headless"], versions["opencv-contrib-python"])
         with open(os.path.join(project, "requirements-desktop.txt"), encoding="utf-8") as f:
             self.assertIn('winotify==1.1.0; sys_platform == "win32"', f.read())
 

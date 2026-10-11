@@ -5,6 +5,8 @@ streamlit==1.65.0
 streamlit-webrtc==0.78.1
 av==17.1.0
 opencv-python-headless==5.0.0.93
+# MediaPipe installs this one as well. Pinned to the same version so the two never differ.
+opencv-contrib-python==5.0.0.93
 mediapipe==1.1.0
 plotly==7.1.0
 pandas==3.0.6
