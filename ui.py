@@ -55,6 +55,7 @@ ICON_FONT = "'Material Symbols Rounded'"      # the icon font Streamlit already 
 TYPE = {"display": 2.6, "h1": 2.1, "h2": 1.5, "h3": 1.2, "body": 1.0, "small": 0.86}
 SPACE = {"xs": 0.25, "sm": 0.5, "md": 1.0, "lg": 1.5, "xl": 2.5}
 RADIUS = "14px"
+TAP = "44px"                     # smallest comfortable touch target on a phone
 
 CSS = f"""
 <style>
@@ -91,7 +92,7 @@ CSS = f"""
                      color: {ON_AMBER}; font-family: {HEADING_FONT}; font-weight: 700;
                      font-size: 1.2rem; display: flex; align-items: center;
                      justify-content: center; margin-bottom: {SPACE['sm']}rem; }}
-.eg-info .eg-step-icon {{ background: {BORDER}; color: {TEAL}; font-size: 1.4rem; }}
+.eg-info .eg-step-icon {{ background: {BORDER}; color: {AMBER}; font-size: 1.4rem; }}
 .eg-info .eg-tag {{ color: {AMBER}; font-size: {TYPE['small']}rem; font-weight: 700;
                     letter-spacing: 0.04em; text-transform: uppercase; }}
 .eg-info .eg-title {{ font-family: {HEADING_FONT}; font-weight: 600; font-size: {TYPE['h3']}rem;
@@ -157,6 +158,35 @@ CSS = f"""
     color: {DISABLED} !important; opacity: 1;
 }}
 [data-testid="stMain"] button:disabled {{ border-style: dashed; }}
+
+/* Phones: everything you tap is at least {TAP} tall (and the icon buttons as wide). */
+.stButton button, .stDownloadButton button, .stFormSubmitButton button,
+[data-testid="stFileUploaderDropzone"] button, [data-testid="stButtonGroup"] button,
+[data-testid="stExpander"] summary, [data-testid="stPageLink-NavLink"],
+[data-testid="stCheckbox"] label, [data-testid="stLogoLink"], [data-testid="stSidebarNavLink"],
+[data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"],
+[data-testid="stSelectbox"] > div > div, [data-testid="stSlider"] > div {{ min-height: {TAP}; }}
+[data-testid="stCheckbox"] label {{ align-items: center; }}
+[data-testid="stExpandSidebarButton"], [data-testid="stMainMenuButton"],
+[data-testid="stSidebarCollapseButton"] button {{ min-width: {TAP}; min-height: {TAP}; }}
+/* The small "?" help icons keep their size but get a finger-sized touch area. */
+[data-testid="stTooltipHoverTarget"] button {{ position: relative; }}
+[data-testid="stTooltipHoverTarget"] button::after {{ content: ""; position: absolute; inset: -14px; }}
+/* The link icon beside each heading is too small to tap and not needed. */
+[data-testid="stHeaderActionElements"] {{ display: none; }}
+/* Commands such as "py eyeguard.py --demo" stay readable inside small print. */
+[data-testid="stMain"] code {{ font-size: 0.875rem; overflow-wrap: anywhere; }}
+
+@media (max-width: 640px) {{
+    .eg-row {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: {SPACE['sm']}rem; }}
+    .eg-row-wide {{ grid-template-columns: 1fr; }}
+    .eg-row .eg-card {{ padding: {SPACE['md']}rem 0.8rem; }}
+    .eg-row-wide .eg-card {{ padding: {SPACE['md']}rem {SPACE['lg']}rem; }}
+    .eg-kpi .eg-unit {{ font-size: 0.9rem; margin-left: 0.15rem; }}
+    .eg-pill {{ white-space: normal; }}
+    .eg-alert, .eg-tip {{ gap: {SPACE['sm']}rem; }}
+    .eg-alert {{ padding: {SPACE['md']}rem; }}
+}}
 </style>
 """
 

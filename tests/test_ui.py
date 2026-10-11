@@ -190,6 +190,23 @@ class BlocksTest(unittest.TestCase):
         self.assertIn("&lt;script&gt;", box)
         self.assertIn("A &lt;b&gt;title&lt;/b&gt;", box)
 
+    def test_phone_rules(self):
+        css = ui.CSS
+        self.assertEqual(ui.TAP, "44px")                         # smallest touch target
+        for tapped in (".stButton button", ".stDownloadButton button", '[data-testid="stButtonGroup"] button',
+                       '[data-testid="stExpander"] summary', '[data-testid="stPageLink-NavLink"]',
+                       '[data-testid="stCheckbox"] label', '[data-testid="stSidebarNavLink"]',
+                       '[data-testid="stTextInputRootElement"]', '[data-testid="stSelectbox"] > div > div'):
+            rule = css[css.index("/* Phones:"):css.index("min-height: 44px; }")]
+            self.assertIn(tapped, rule)
+        self.assertIn('[data-testid="stExpandSidebarButton"]', css)     # the menu button on a phone
+        self.assertIn("min-width: 44px; min-height: 44px;", css)
+        self.assertIn("code { font-size: 0.875rem;", css)        # 14 px, never smaller
+        phone = css[css.index("@media (max-width: 640px)"):]
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", phone)   # number cards two by two
+        for size in ui.TYPE.values():
+            self.assertGreaterEqual(size * 16, 13)               # no text style under 13 px
+
     def test_an_unknown_kind_falls_back_safely(self):
         self.assertIn("eg-pill", ui.pill_html("Hello", "no-such-kind"))
 

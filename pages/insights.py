@@ -28,6 +28,11 @@ def when(start):
     return f"{start:%a %d %b %Y, %H:%M}"
 
 
+def points(change):
+    """ "1 point" or "3 points"."""
+    return f"{change:.0f} point" + ("" if round(change) == 1 else "s")
+
+
 # ------------------------------------------------------- choose the sessions
 controls = st.container(horizontal=True, vertical_alignment="center")
 if controls.button("Generate demo week", icon=":material/science:",
@@ -107,7 +112,7 @@ else:
             note += "Every hour is inside or above the healthy 15-20 range."
         st.caption(note)
     st.plotly_chart(
-        charts.hourly(hours, "blink_rate", "Blink rate by hour of the day",
+        charts.hourly(hours, "blink_rate", "Blink rate by hour",
                       "Blinks per minute", "blinks/min",
                       limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min", "warn"),
                               (BLINK_ALERT_RATE, f"Strong alert below {BLINK_ALERT_RATE}/min")],
@@ -124,17 +129,17 @@ if len(table) < 2:
 else:
     slope = sessions.strain_trend(table)
     if slope > 1:
-        st.markdown(f"#### Your eye strain is rising: about {slope:.0f} points "
+        st.markdown(f"#### Your eye strain is rising: about {points(slope)} "
                     "more each session")
         st.caption("Try shorter sessions, more breaks, or sitting further back.")
     elif slope < -1:
-        st.markdown(f"#### Your eye strain is falling: about {-slope:.0f} points "
+        st.markdown(f"#### Your eye strain is falling: about {points(-slope)} "
                     "less each session")
         st.caption("Your habits are improving. Keep it up.")
     else:
         st.markdown("#### Your eye strain is steady from session to session")
     st.plotly_chart(
-        charts.trend(table, "avg_score", "Average strain score in each session",
+        charts.trend(table, "avg_score", "Strain score by session",
                      "Score (0-100)", limits=[(50, "High strain above 50")],
                      y_range=[0, 100]),
         config=charts.CONFIG, alt="Average strain score of each session, oldest to newest")

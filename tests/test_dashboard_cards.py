@@ -152,6 +152,26 @@ class ChartPolishTest(unittest.TestCase):
         self.assertFalse(any(a.text.startswith(("Warning", "Strong", "Healthy"))
                              for a in fig.layout.annotations))                # nothing on top of the bars
 
+    def test_charts_fit_a_phone_screen(self):
+        df = sessions.clean(sample_data.make_session(minutes=25))
+        found = {f"{i}.csv": sessions.clean(sample_data.make_session(minutes=5, seed=i)) for i in range(12)}
+        blink = charts.timeline(df, "blink_rate", "Blink rate", "Blinks per minute",
+                                limits=[(7, "Warning below 7/min", "warn"), (5, "Strong alert below 5/min")])
+        figs = [blink, charts.hourly(sessions.by_hour(found), "blink_rate", "Blink rate by hour", "y", "u"),
+                charts.trend(sessions.session_table(found), "avg_score", "Strain score by session", "y")]
+        for fig in figs:
+            legend = fig.layout.legend                       # under the chart, so it wraps and is never cut
+            self.assertEqual((legend.orientation, legend.xanchor, legend.x, legend.yanchor),
+                             ("h", "left", 0, "top"))
+            self.assertLess(legend.y, 0)
+            self.assertLessEqual(len(fig.layout.title.text), 26)         # fits 340 px at 21 px
+        self.assertEqual(blink.layout.xaxis.nticks, 6)
+        self.assertEqual(figs[2].layout.xaxis.nticks, 8)
+        # the two blink limit labels sit on opposite sides of their lines
+        where = {a.text: a.yanchor for a in blink.layout.annotations}
+        self.assertEqual((where["Warning below 7/min"], where["Strong alert below 5/min"]),
+                         ("bottom", "top"))
+
     def test_all_charts_share_one_style(self):
         df = sessions.clean(sample_data.make_session(minutes=25))
         found = {"a.csv": df, "b.csv": sessions.clean(sample_data.make_session(minutes=25, seed=2))}

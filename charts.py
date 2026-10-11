@@ -22,14 +22,15 @@ AXIS = ui.BORDER
 CONFIG = {"displayModeBar": False}       # hide the plotly toolbar (cleaner on a phone)
 
 
-def style(fig, title, x_title, y_title, height=360):
+def style(fig, title, x_title, y_title, height=360, legend_y=-0.3):
     fig.update_layout(
         title=dict(text=title, font=dict(size=21, color=INK), x=0, xanchor="left"),
-        height=height, margin=dict(l=10, r=24, t=76, b=10),
+        height=height, margin=dict(l=10, r=24, t=56, b=10),
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",     # the page shows through
         font=dict(color=INK, size=15),               # large enough for a projector
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1,
+        # under the chart, from the left: on a phone the entries wrap instead of being cut off
+        legend=dict(orientation="h", yanchor="top", y=legend_y, xanchor="left", x=0,
                     font=dict(color=INK, size=14)),
         hoverlabel=dict(font_size=14, bgcolor=ui.SURFACE, bordercolor=ui.BORDER,
                         font_color=INK),
@@ -71,9 +72,11 @@ def add_limits(fig, limits=(), band=None, in_legend=False):
                       layer="below", **label(text, "top left", HEALTHY))
         legend_entry(text, HEALTHY)
     for value, text, *level in limits:
-        colour = WARNING if level == ["warn"] else ALERT
+        warn = level == ["warn"]
+        colour = WARNING if warn else ALERT
+        # warning label above its line, alert label below: they never sit on each other
         fig.add_hline(y=value, line=dict(color=colour, width=2, dash="dash"),
-                      **label(text, "bottom right", colour))
+                      **label(text, "top right" if warn else "bottom right", colour))
         legend_entry(text, colour, "dash")
 
 
@@ -104,8 +107,7 @@ def hourly(hours, column, title, y_title, unit, limits=(), band=None):
         lowest = hours.loc[hours[column].idxmin()]
         label_point(fig, lowest["hour"], lowest[column], "lowest")
 
-    style(fig, title, "Hour of the day", y_title, height=390)
-    fig.update_layout(legend=dict(xanchor="left", x=0, y=1.02))
+    style(fig, title, "Hour of the day", y_title, height=420, legend_y=-0.45)
     fig.update_xaxes(range=[-0.5, 23.5], tickvals=list(range(0, 24, 3)),
                      ticktext=[hour_label(h) for h in range(0, 24, 3)])
     fig.update_yaxes(range=[0, max(25, hours[column].max() * 1.2)])
@@ -135,7 +137,7 @@ def trend(table, column, title, y_title, limits=(), y_range=None):
         fig.update_xaxes(tickvals=number,
                          ticktext=[f"{start:%d %b}<br>{start:%H:%M}" for start in table["start"]])
     else:
-        fig.update_xaxes(dtick=max(1, len(table) // 8))
+        fig.update_xaxes(nticks=8, tickformat="d")       # few enough to fit on a phone
     fig.update_xaxes(range=[0.5, len(table) + 0.5])
     if y_range:
         fig.update_yaxes(range=y_range)
@@ -167,7 +169,7 @@ def timeline(df, column, title, y_title, limits=(), band=None, y_range=None, fil
 
     style(fig, title, "Minutes into session", y_title)
     fig.update_layout(hovermode="x unified")
-    fig.update_xaxes(hoverformat=".1f", ticksuffix=" min")
+    fig.update_xaxes(hoverformat=".1f", nticks=6)        # few ticks: they fit on a phone
     if y_range:
         fig.update_yaxes(range=y_range)
     return fig
