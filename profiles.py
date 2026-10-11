@@ -46,6 +46,7 @@ MAX_SAFE_DISTANCE_CM = 100
 LENS_DISTANCE_M = 0.015              # glasses sit about 15 mm in front of the eye
 HIGH_POWER_D = 6.0                   # at or above this, show the eye check-up reminder
 CALIBRATION_DISTANCE_CM = 50         # where you sit when you press c
+FOCAL_MIN_PX, FOCAL_MAX_PX = 50, 20000   # any real webcam is well inside this
 DASHES = "‐‑‒–—―−"     # hyphens, en/em dashes, minus sign
 
 
@@ -108,8 +109,9 @@ def make(name, correction="none", power=0.0, safe_distance_cm=DEFAULT_SAFE_DISTA
     power = 0.0 if correction == "none" else parse_power(power)
     if focal_px is not None:
         focal_px = float(focal_px)
-        if not focal_px > 0:
-            raise ValueError("the saved focal length must be a positive number")
+        if not FOCAL_MIN_PX <= focal_px <= FOCAL_MAX_PX:
+            raise ValueError("the saved focal length must be between "
+                             f"{FOCAL_MIN_PX} and {FOCAL_MAX_PX} pixels")
     return {"name": name, "correction": correction, "power": power,
             "safe_distance_cm": parse_safe_distance(safe_distance_cm),
             "focal_px": focal_px, "calibrated_on": calibrated_on if focal_px else None}

@@ -73,7 +73,9 @@ class ValuesTest(unittest.TestCase):
         self.assertEqual(profiles.make("A", "none", -3)["power"], 0.0)   # no lenses, no power
         for bad in [dict(name=""), dict(name="A", correction="lasik"),
                     dict(name="A", correction="glasses", power=30),
-                    dict(name="A", safe_distance_cm=20), dict(name="A", focal_px=-5)]:
+                    dict(name="A", safe_distance_cm=20), dict(name="A", focal_px=-5),
+                    dict(name="A", focal_px=0), dict(name="A", focal_px=1e9),
+                    dict(name="A", focal_px=float("nan"))]:
             with self.assertRaises(ValueError, msg=bad):
                 profiles.make(**bad)
 
