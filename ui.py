@@ -174,7 +174,7 @@ CSS = f"""
 [data-testid="stTooltipHoverTarget"] button::after {{ content: ""; position: absolute; inset: -14px; }}
 /* The link icon beside each heading is too small to tap and not needed. */
 [data-testid="stHeaderActionElements"] {{ display: none; }}
-/* Commands such as "py eyeguard.py --demo" stay readable inside small print. */
+/* Commands such as "py eyeguard.py --mute" stay readable inside small print. */
 [data-testid="stMain"] code {{ font-size: 0.875rem; overflow-wrap: anywhere; }}
 
 @media (max-width: 640px) {{

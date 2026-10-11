@@ -35,32 +35,32 @@ def points(change):
 
 # ------------------------------------------------------- choose the sessions
 controls = st.container(horizontal=True, vertical_alignment="center")
-if controls.button("Generate demo week", icon=":material/science:",
-                   help="Creates 7 made-up sessions at different times of day "
+if controls.button("Load sample week", icon=":material/science:",
+                   help="Loads 7 sessions of sample data at different times of day "
                         "so you can try this page."):
-    sessions.generate_demo_week()
-    st.toast("Demo week created", icon=":material/check_circle:")
+    sessions.generate_sample_week()
+    st.toast("Sample week loaded", icon=":material/check_circle:")
 
 found = sessions.all_sessions()
 if not found:
     st.info(
         "**No sessions yet.** You can:\n"
-        "- click **Generate demo week** to see an example of this page,\n"
+        "- click **Load sample week** to see an example of this page,\n"
         "- run a **Live Check** and open it in the Session Dashboard, or\n"
         "- upload CSVs saved by the desktop app on the Session Dashboard page.",
         icon=":material/info:")
     st.stop()
 
-demo_names = [name for name in found if sessions.is_demo(name)]
-if demo_names and len(demo_names) < len(found):        # a mix of demo and real
-    if not controls.toggle("Include demo sessions", value=True,
-                           help="Demo sessions are made-up data. Switch this off "
+sample_names = [name for name in found if sessions.is_sample(name)]
+if sample_names and len(sample_names) < len(found):        # a mix of sample and real
+    if not controls.toggle("Include sample data", value=True,
+                           help="Sample sessions are made-up data. Switch this off "
                                 "to see only your own sessions."):
-        found = {name: df for name, df in found.items() if name not in demo_names}
-        demo_names = []
-if demo_names:
-    count = "1 demo session" if len(demo_names) == 1 else f"{len(demo_names)} demo sessions"
-    st.caption(f":material/science: Includes {count} with made-up data.")
+        found = {name: df for name, df in found.items() if name not in sample_names}
+        sample_names = []
+if sample_names:
+    count = "1 session" if len(sample_names) == 1 else f"{len(sample_names)} sessions"
+    st.caption(f":material/science: Sample data: includes {count} with made-up numbers.")
 
 try:
     table = sessions.session_table(found)
@@ -170,7 +170,7 @@ else:
 with st.expander("View all sessions as a table"):
     st.dataframe(
         table[["start", "minutes", "avg_blink_rate", "avg_distance", "too_close_pct",
-               "breaks", "avg_score", "peak_score", "demo"]],
+               "breaks", "avg_score", "peak_score", "sample"]],
         hide_index=True, alt="One row per session with its summary numbers",
         column_config={
             "start": st.column_config.DatetimeColumn("Started", format="D MMM YYYY, HH:mm"),
@@ -182,5 +182,5 @@ with st.expander("View all sessions as a table"):
             "avg_score": st.column_config.ProgressColumn(
                 "Average strain", format="%.0f", min_value=0, max_value=100),
             "peak_score": st.column_config.NumberColumn("Peak strain"),
-            "demo": st.column_config.CheckboxColumn("Demo data"),
+            "sample": st.column_config.CheckboxColumn("Sample data"),
         })

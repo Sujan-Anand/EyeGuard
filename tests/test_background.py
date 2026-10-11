@@ -36,7 +36,7 @@ def blinking_every(seconds, step=0.1):
 
 
 def break_plan(n):
-    """Demo mode, 1 s per frame. The break is due at frame 59: look away for
+    """A break due after one minute, 1 s per frame. The break is due at frame 59: look away for
     12 s, look back for 3 s (the timer pauses), look away for the last 8 s."""
     return AWAY if 65 <= n <= 76 or 80 <= n <= 87 else FACE
 
@@ -207,8 +207,8 @@ class NormalModeUnchangedTest(unittest.TestCase):
 
     def test_the_session_file_is_the_same_in_both_modes(self):
         plan = lambda n: NEAR if 20 <= n < 30 else AWAY if 40 <= n < 45 else FACE   # noqa: E731
-        normal = run_desktop(["--demo"], frames=90, step=1.0, frame_for=plan)
-        hidden = run_desktop(["--demo", "--background"], frames=90, step=1.0, frame_for=plan)
+        normal = run_desktop(frames=90, step=1.0, frame_for=plan, break_every=60)
+        hidden = run_desktop(["--background"], frames=90, step=1.0, frame_for=plan, break_every=60)
         self.assertEqual(normal["header"], COLUMNS)
         self.assertEqual(hidden["header"], COLUMNS)
         self.assertEqual(hidden["rows"], normal["rows"])
@@ -272,7 +272,8 @@ class BackgroundModeTest(unittest.TestCase):
         self.assertEqual(len(r["beeps"]), 1)
 
     def test_break_with_pause_and_continue(self):
-        r = run_desktop(["--demo", "--background"], frames=95, step=1.0, frame_for=break_plan)
+        r = run_desktop(["--background"], frames=95, step=1.0, frame_for=break_plan,
+                        break_every=60)
         breaks = [(n, m) for n, _, m in r["toasts"] if m.startswith(BREAK_WORDS)]
         self.assertEqual(breaks, [(59, "Break time: look away for 20 s"),
                                   (77, "Break paused at 12/20 s — look away to continue"),
@@ -288,8 +289,8 @@ class BackgroundModeTest(unittest.TestCase):
         self.assertEqual(on_break[58:88], ["0"] + ["1"] * 28 + ["0"])             # logged as before
 
     def test_mute_silences_the_beeps_but_keeps_the_notifications(self):
-        r = run_desktop(["--demo", "--background", "--mute"], frames=95, step=1.0,
-                        frame_for=break_plan)
+        r = run_desktop(["--background", "--mute"], frames=95, step=1.0,
+                        frame_for=break_plan, break_every=60)
         self.assertEqual(r["beeps"], [])
         self.assertEqual(messages(r, BREAK_WORDS)[-1], "Break done ✓")
         self.assertEqual(len(messages(r, BREAK_WORDS)), 3)

@@ -37,8 +37,7 @@ The first run downloads a small face model (`face_landmarker.task`, about 4 MB),
 ## Run the desktop app
 
 ```
-py eyeguard.py --demo       # break every 60 s
-py eyeguard.py              # normal: break every 20 min
+py eyeguard.py              # a break is due every 20 minutes
 py eyeguard.py --camera 1   # if the wrong camera opens
 py eyeguard.py --mute       # start with the sound off
 py eyeguard.py --test-sound # play each alert sound once and exit
@@ -56,11 +55,11 @@ Alerts and breaks play a sound, with at least 15 seconds between repeats of the 
 
 ```
 py eyeguard.py --background
-py eyeguard.py --background --profile "Sujan - glasses" --demo --mute
+py eyeguard.py --background --profile "Sujan - glasses" --mute
 py eyeguard.py --background --no-mini
 ```
 
-Background mode keeps watching through the webcam but shows no video window, so you can get on with your work. It works together with `--profile`, `--demo` and `--mute`.
+Background mode keeps watching through the webcam but shows no video window, so you can get on with your work. It works together with `--profile` and `--mute`.
 
 - **Notifications.** Windows pop-up notifications replace the on-screen alerts: blink warning (below 7/min), strong blink alert (below 5/min), too close, drowsy, and the break. The same 15-second gap between repeats applies. The break still has to be a real one: `Break time: look away for 20 s`, then `Break paused at 12/20 s — look away to continue` if you look back, then `Break done ✓`.
 - **Sound.** The notifications themselves are silent. EyeGuard plays its usual beeps with them, and `--mute` switches the beeps off.
@@ -120,7 +119,7 @@ Each run saves `logs/session_<date>_<time>.csv`. To get a report from the comman
 
 ```
 py report.py                # charts, summary and tips for the latest session
-py sample_data.py           # create a 60-minute demo session
+py sample_data.py           # create a 60-minute sample session
 ```
 
 ## Run the website on your laptop
@@ -133,10 +132,10 @@ It opens at http://localhost:8501.
 
 | Page | What it does |
 |---|---|
-| Home | "Blink more. Sit back. Look away." with buttons to start a live check or open a demo session, the problem, how EyeGuard works in three steps, and the SDGs it supports. |
+| Home | "Blink more. Sit back. Look away." with buttons to start a live check or open a sample session, the problem, how EyeGuard works in three steps, and the SDGs it supports. |
 | Live Check | Webcam check in the browser with the numbers, alerts and 20-20-20 break drawn on the video. Also has a single-photo mode. Uses your profile if you have set one. |
 | My Profile | What you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them. |
-| Session Dashboard | Number cards with units and a status in words (for example "Below normal", "One missed"), interactive charts with labelled limit lines, tips as cards with the most important first, and downloads for one session. Pick a CSV from `logs/`, upload one, or generate a demo session. |
+| Session Dashboard | Number cards with units and a status in words (for example "Below normal", "One missed"), interactive charts with labelled limit lines, tips as cards with the most important first, and downloads for one session. Pick a CSV from `logs/`, upload one, or load a sample session. |
 | Insights | All sessions together: blink rate by hour of the day, strain trend, best and worst session. |
 | About | Formulas, future scope and the AI usage disclosure. |
 
@@ -162,8 +161,8 @@ Things to know after deploying:
 
 - If the repository is private, Streamlit asks for permission to read private repositories when you connect GitHub.
 - The app sleeps after a period with no visitors. Open the link a few minutes before you present.
-- `logs/` on the server starts empty. Use **Generate demo session** and **Generate demo week**, or upload CSVs recorded with the desktop app.
-- The cloud server's clock is UTC, so demo sessions made there show UTC hours.
+- `logs/` on the server starts empty. Use **Load sample session** and **Load sample week**, or upload CSVs recorded with the desktop app.
+- The cloud server's clock is UTC, so sample sessions made there show UTC hours.
 
 ### If Live Check will not connect
 
@@ -201,7 +200,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 |---|---|
 | `eyeguard.py` | Desktop monitor. Also holds the measurement functions (EAR, iris distance, head pose, strain score) that the website imports. |
 | `report.py` | Loads a session CSV, works out the summary and tips, draws the matplotlib report. |
-| `sample_data.py` | Makes realistic demo sessions. |
+| `sample_data.py` | Makes realistic sample sessions. |
 | `app.py` | Website entry point and Home page. |
 | `pages/` | Live Check, My Profile, Session Dashboard, Insights and About pages. |
 | `profiles.py` | Profiles: what is saved, the terminal questions, and the lens formula. |

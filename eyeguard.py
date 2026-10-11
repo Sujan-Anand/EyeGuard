@@ -13,8 +13,7 @@ Uses your webcam + MediaPipe Face Mesh to track:
     looking back at the screen pauses the 20 s timer)
   * Live Eye Strain Score (0-100), logged to CSV for report.py
 
-Run:   python eyeguard.py            (normal: break every 20 min)
-       python eyeguard.py --demo     (break every 60 s)
+Run:   python eyeguard.py            (a break is due every 20 minutes)
        python eyeguard.py --mute     (start with the sound off)
        python eyeguard.py --test-sound   (play each alert sound once, then exit)
        python eyeguard.py --profile "Sujan - glasses"   (use or create a saved profile)
@@ -50,6 +49,7 @@ BLINK_WARN_RATE = 7              # blinks/min below this -> warning; normal is ~
 BLINK_ALERT_RATE = 5             # blinks/min below this -> strong alert
 LOW_BLINK_RATE = BLINK_WARN_RATE # older name for the warning level
 DROWSY_SECONDS = 2.0             # eyes closed this long -> drowsy
+BREAK_EVERY_SECONDS = 20 * 60    # the "20 minutes" of 20-20-20: a break is due this often
 BREAK_LOOK_AWAY_SECONDS = 20     # the "20 seconds" of 20-20-20
 BREAK_GLANCE_SECONDS = 0.5       # looking back for less than this is ignored
 MAX_FRAME_GAP = 1.0              # a frozen camera adds at most this much break time
@@ -397,7 +397,6 @@ def draw_break_screen(frame, timer):
 # ------------------------------------------------------------- main app
 def main():
     ap = argparse.ArgumentParser(description="EyeGuard eye strain monitor")
-    ap.add_argument("--demo", action="store_true", help="break every 60 s instead of 20 min")
     ap.add_argument("--camera", type=int, default=CAMERA_INDEX)
     ap.add_argument("--mute", action="store_true", help="start with the sound off (m toggles it)")
     ap.add_argument("--test-sound", action="store_true",
@@ -411,7 +410,7 @@ def main():
     ap.add_argument("--no-mini", action="store_true",
                     help="with --background: do not show the small box (stop with Ctrl+C)")
     args = ap.parse_args()
-    break_every_s = 60 if args.demo else 20 * 60
+    break_every_s = BREAK_EVERY_SECONDS
     for stream in (sys.stdout, sys.stderr):      # a name the terminal cannot show
         if hasattr(stream, "reconfigure"):       # prints as "?" instead of stopping
             stream.reconfigure(errors="replace")

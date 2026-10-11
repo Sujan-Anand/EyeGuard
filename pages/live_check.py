@@ -118,13 +118,8 @@ with st.container(border=True):
             help="Plays a short beep in the browser when an alert appears, when a break "
                  "starts or finishes, and once when you look back during a break. "
                  "Browsers only allow sound after you have clicked on the page.")
-        pace = st.segmented_control(
-            "20-20-20 break", ["Demo: every 60 seconds", "Normal: every 20 minutes"],
-            default="Demo: every 60 seconds",
-            help="Every 20 minutes, look at something 20 feet away for 20 seconds. "
-                 "Demo mode asks for the break after one minute so you can try it.")
-        tracker.break_every_s = (live.NORMAL_BREAK_SECONDS if pace and pace.startswith("Normal")
-                                 else live.DEMO_BREAK_SECONDS)
+        st.caption("20-20-20 break: every 20 minutes, look at something 20 feet away "
+                   "for 20 seconds. EyeGuard tells you when it is due.")
 
 # --------------------------------------------------------------- single photo
 if mode == "Single photo":
@@ -334,4 +329,4 @@ with st.expander("Camera not working?", icon=":material/help:", expanded=not pla
         "4. **Try a phone hotspot.** Some campus and office networks block live video, "
         "so START keeps spinning. **Single photo** at the top of this page also works "
         "on any network.\n"
-        "5. **Or run the desktop app instead:** `py eyeguard.py --demo`")
+        "5. **Or run the desktop app instead:** `py eyeguard.py`")

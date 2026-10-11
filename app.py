@@ -27,8 +27,8 @@ def home():
     with st.container(horizontal=True):
         if st.button("Start live check", type="primary", icon=":material/videocam:"):
             st.switch_page(live_page)
-        if st.button("See a demo session", icon=":material/monitoring:"):
-            st.session_state["selected_session"] = os.path.basename(sessions.generate_demo())
+        if st.button("See a sample session", icon=":material/monitoring:"):
+            st.session_state["selected_session"] = os.path.basename(sessions.generate_sample())
             st.switch_page(dashboard_page)
 
     # ------------------------------------------------------------ the problem

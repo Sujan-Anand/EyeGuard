@@ -18,9 +18,9 @@ with st.container(border=True):
     uploaded = add_col.file_uploader(
         "Upload a session CSV", type="csv",
         help="The desktop app saves one CSV per session in its logs folder.")
-    demo_clicked = add_col.button(
-        "Generate demo session", icon=":material/science:",
-        help="Creates a realistic 60-minute session so you can try the dashboard.")
+    sample_clicked = add_col.button(
+        "Load sample session", icon=":material/science:",
+        help="Loads a realistic 60-minute session of sample data so you can try the dashboard.")
 
 if uploaded is not None and uploaded.file_id != st.session_state.get("last_upload_id"):
     st.session_state["last_upload_id"] = uploaded.file_id       # handle each file once
@@ -30,17 +30,17 @@ if uploaded is not None and uploaded.file_id != st.session_state.get("last_uploa
     except ValueError as err:
         st.error(f"Could not use {uploaded.name}: {err}.")
 
-if demo_clicked:
-    st.session_state["selected_session"] = os.path.basename(sessions.generate_demo())
-    st.toast("Demo session created", icon=":material/check_circle:")
+if sample_clicked:
+    st.session_state["selected_session"] = os.path.basename(sessions.generate_sample())
+    st.toast("Sample session loaded", icon=":material/check_circle:")
 
 found = sessions.all_sessions()
 if not found:
     pick_col.info(
         "**No sessions yet.** You can:\n"
-        "- click **Generate demo session** to see an example,\n"
+        "- click **Load sample session** to see an example,\n"
         "- run a **Live Check** and open it here when you stop the video, or\n"
-        "- upload a CSV saved by the desktop app (`py eyeguard.py --demo`).",
+        "- upload a CSV saved by the desktop app (`py eyeguard.py`).",
         icon=":material/info:")
     st.stop()
 

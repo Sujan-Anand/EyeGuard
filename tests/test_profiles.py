@@ -198,7 +198,7 @@ class DesktopProfileTest(TempProfilesFile):
     """The real main() loop with a simulated camera."""
 
     def test_new_profile_is_created_and_shown_on_the_panel(self):
-        r = run_desktop(["--demo", "--profile", "Sujan – glasses"], frames=5,
+        r = run_desktop(["--profile", "Sujan – glasses"], frames=5, break_every=60,
                         typed=["g", "-7", ""])
         self.assertIn("Profile saved - Sujan – glasses: glasses -7.00 D, safe distance 50 cm",
                       r["printed"])
@@ -216,7 +216,7 @@ class DesktopProfileTest(TempProfilesFile):
         self.assertIn("contacts -6.50 D", all_text(r))
 
     def test_no_profile_means_no_profile_line_and_no_file(self):
-        r = run_desktop(["--demo"], frames=5)
+        r = run_desktop(frames=5, break_every=60)
         self.assertFalse(any(t.endswith(" D") or "glasses" in t or "contacts" in t
                              for t in all_text(r)))
         self.assertFalse(any("Profile" in line for line in r["printed"].splitlines()))
@@ -224,9 +224,9 @@ class DesktopProfileTest(TempProfilesFile):
 
     def test_a_plain_profile_changes_no_numbers(self):
         # no glasses, default safe distance: the same log as running with no profile
-        plain = run_desktop(["--demo"], frames=70, step=1.0)
+        plain = run_desktop(frames=70, step=1.0, break_every=60)
         profiles.save(profiles.make("Asha"))
-        with_profile = run_desktop(["--demo", "--profile", "Asha"], frames=70, step=1.0)
+        with_profile = run_desktop(["--profile", "Asha"], frames=70, step=1.0, break_every=60)
         self.assertEqual(with_profile["header"], plain["header"])           # same CSV columns
         self.assertEqual(with_profile["rows"], plain["rows"])               # same numbers
         self.assertEqual(with_profile["beeps"], plain["beeps"])

@@ -1,9 +1,9 @@
 """
-Creates a realistic 60-minute demo session in logs/ so the report
+Creates a realistic 60-minute sample session in logs/ so the report
 can be shown even before (or without) a long live run.
   python sample_data.py && python report.py
 
-The website imports make_session() / write_demo() from here.
+The website imports make_session() / write_sample() from here.
 """
 
 import os
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-DEMO_PATH = os.path.join("logs", "session_00000000_demo.csv")
+SAMPLE_PATH = os.path.join("logs", "session_00000000_sample.csv")
 
 
 def make_session(minutes=60, seed=7, start=None,
@@ -53,12 +53,12 @@ def make_session(minutes=60, seed=7, start=None,
     })
 
 
-def write_demo(path=DEMO_PATH, **kwargs):
-    """Writes a demo session CSV and returns its path."""
+def write_sample(path=SAMPLE_PATH, **kwargs):
+    """Writes a sample session CSV and returns its path."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     make_session(**kwargs).to_csv(path, index=False)
     return path
 
 
 if __name__ == "__main__":
-    print("Sample session written to", write_demo())
+    print("Sample session written to", write_sample())

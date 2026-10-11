@@ -110,7 +110,7 @@ class DesktopBreakTest(unittest.TestCase):
     """The real main() loop with a simulated camera, break started with the b key."""
 
     def run_break(self, argv=()):
-        return run_desktop(["--demo", *argv], frames=60, step=0.5, keys={2: "b"},
+        return run_desktop([*argv], frames=60, step=0.5, keys={2: "b"}, break_every=60,
                            frame_for=break_plan)
 
     def test_pause_keeps_the_seconds_and_beeps_once(self):
@@ -137,7 +137,7 @@ class DesktopBreakTest(unittest.TestCase):
     def test_a_glance_does_not_pause_or_beep(self):
         def frame_for(n):                                   # 0.1 s per frame
             return FACE if n < 3 or 53 <= n < 56 else AWAY  # a 0.3 s glance after 5 s
-        r = run_desktop(["--demo"], frames=120, step=0.1, keys={2: "b"}, frame_for=frame_for)
+        r = run_desktop(frames=120, step=0.1, keys={2: "b"}, frame_for=frame_for, break_every=60)
         self.assertFalse(any(t.startswith("Paused") for t in all_text(r)))
         self.assertEqual([kind for _, kind in r["beeps"]], [])      # not finished yet either
         self.assertIn("Good! Keep looking away (11/20 s)", all_text(r))

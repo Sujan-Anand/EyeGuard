@@ -70,8 +70,11 @@ AWAY = np.full((HEIGHT, WIDTH, 3), 128, np.uint8)      # nobody in view
 
 
 def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(),
-                stop_at=None, ctrl_c_at=None, mini_fails=False):
+                stop_at=None, ctrl_c_at=None, mini_fails=False, break_every=None):
     """Runs eyeguard.main() for `frames` frames and returns what happened:
+
+    break_every sets how often a break is due, in seconds (normally 20 minutes),
+    so a test can reach a break quickly.
 
     Background mode (--background) gets a pretend notifier and mini window:
     stop_at presses the Stop button at that frame, ctrl_c_at presses Ctrl+C,
@@ -159,13 +162,15 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
     saved = (cv2.VideoCapture, cv2.imshow, cv2.waitKey, cv2.destroyAllWindows,
              cv2.rectangle, eyeguard.beep, eyeguard.put, eyeguard.time,
              sys.argv, sys.stdout, sys.stdin, os.getcwd(),
-             background.Notifier, background.MiniWindow)
+             background.Notifier, background.MiniWindow, eyeguard.BREAK_EVERY_SECONDS)
     work = tempfile.mkdtemp(prefix="eyeguard_test_")
     out = io.StringIO()
     try:
         cv2.VideoCapture = FakeCamera
         cv2.imshow = lambda *a, **k: shown.append(state["frame"])
         background.Notifier, background.MiniWindow = FakeNotifier, FakeMini
+        if break_every is not None:
+            eyeguard.BREAK_EVERY_SECONDS = break_every
         cv2.waitKey = lambda *a, **k: ord(keys[state["frame"]]) if state["frame"] in keys else -1
         cv2.destroyAllWindows = lambda *a, **k: None
         cv2.rectangle = spy_rectangle
@@ -180,6 +185,7 @@ def run_desktop(argv=(), frames=40, step=1.0, keys=None, frame_for=None, typed=(
          sys.argv, sys.stdout, sys.stdin) = saved[:11]
         os.chdir(saved[11])
         background.Notifier, background.MiniWindow = saved[12:14]
+        eyeguard.BREAK_EVERY_SECONDS = saved[14]
 
     header, rows = [], []
     for path in glob.glob(os.path.join(work, "logs", "session_*.csv")):

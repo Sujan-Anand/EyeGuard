@@ -127,7 +127,7 @@ st.write(
 st.caption("If nobody is in view for 2 minutes it sends one \"EyeGuard paused\" "
            "notification and continues by itself when you return. It reads the camera "
            "at most 15 times a second, and the session CSV is the same as in the "
-           "normal mode. It works with `--profile`, `--demo` and `--mute`.")
+           "normal mode. It works with `--profile` and `--mute`.")
 
 st.subheader("Known limits")
 st.markdown(

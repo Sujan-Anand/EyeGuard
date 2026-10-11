@@ -31,8 +31,7 @@ DEFAULT_EAR_THRESHOLD = 0.21
 MIN_CLOSED_FRAMES = 2            # shorter than this is noise, not a blink
 WARMUP_SECONDS = 15              # blink rate needs this much data first
 BLINK_ALERT_AFTER = 30           # no "blink more" alert before this
-DEMO_BREAK_SECONDS = 60          # same as  py eyeguard.py --demo
-NORMAL_BREAK_SECONDS = 20 * 60
+NORMAL_BREAK_SECONDS = eg.BREAK_EVERY_SECONDS      # a break is due every 20 minutes
 
 # Website only.
 PAUSE_SECONDS = 3                # a gap this long means the video was stopped

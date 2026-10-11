@@ -1,6 +1,6 @@
 """
 Shared helpers for the website: find, load, check and summarise session CSVs.
-The CSV reading and the summary/tips logic come from report.py, and the demo
+The CSV reading and the summary/tips logic come from report.py, and the sample
 data comes from sample_data.py - nothing is duplicated here.
 """
 
@@ -26,7 +26,7 @@ MIN_HOUR_MINUTES = 2                 # Insights ignores hours of the day with le
 
 # (days ago, start hour, minutes, blink_base, dist_base, light_base)
 # A made-up week for the Insights page: later sessions are darker and more tiring.
-DEMO_WEEK = [
+SAMPLE_WEEK = [
     (6, 9, 45, 18.5, 66, 160),
     (5, 11, 60, 17.5, 64, 150),
     (4, 14, 50, 17.0, 63, 140),
@@ -99,34 +99,44 @@ def all_sessions():
     return found
 
 
-def is_demo(name):
-    return name.endswith("_demo.csv")
+def is_sample(name):
+    """Sample data made by the website (older versions called these files "_demo")."""
+    return name.endswith(("_sample.csv", "_demo.csv"))
 
 
 def label(name, df):
     """Readable name for the session picker."""
     start = df["timestamp"].iloc[0]
     text = f"{start:%d %b %Y, %H:%M} · {len(df) / 60:.0f} min · {name}"
-    return "Demo · " + text if is_demo(name) else text
+    return "Sample data · " + text if is_sample(name) else text
 
 
-# ---------------------------------------------------------------- demo data
-def generate_demo():
-    """One 60-minute demo session ending now (same as running sample_data.py)."""
-    path = os.path.join(LOG_DIR, os.path.basename(sample_data.DEMO_PATH))
-    return sample_data.write_demo(path)
+# -------------------------------------------------------------- sample data
+def generate_sample():
+    """One 60-minute sample session ending now (same as running sample_data.py)."""
+    path = os.path.join(LOG_DIR, os.path.basename(sample_data.SAMPLE_PATH))
+    _drop_old_name(path)
+    return sample_data.write_sample(path)
 
 
-def generate_demo_week():
-    """Seven demo sessions at different times of day, for the Insights page."""
+def _drop_old_name(path):
+    """Removes the same sample file under its older "_demo" name, so it is not listed twice."""
+    old = path.replace("_sample.csv", "_demo.csv")
+    if old != path and os.path.exists(old):
+        os.remove(old)
+
+
+def generate_sample_week():
+    """Seven sample sessions at different times of day, for the Insights page."""
     today = datetime.now().replace(minute=0, second=0, microsecond=0)
     paths = []
-    for i, (days_ago, hour, minutes, blink, dist, light) in enumerate(DEMO_WEEK, start=1):
+    for i, (days_ago, hour, minutes, blink, dist, light) in enumerate(SAMPLE_WEEK, start=1):
         start = today.replace(hour=hour) - timedelta(days=days_ago)
         if start + timedelta(minutes=minutes) > datetime.now():
             start -= timedelta(days=1)             # never write a session in the future
-        path = os.path.join(LOG_DIR, f"session_0000000{i}_demo.csv")
-        paths.append(sample_data.write_demo(
+        path = os.path.join(LOG_DIR, f"session_0000000{i}_sample.csv")
+        _drop_old_name(path)
+        paths.append(sample_data.write_sample(
             path, minutes=minutes, seed=100 + i, start=start,
             blink_base=blink, dist_base=dist, light_base=light))
     return paths
@@ -264,7 +274,7 @@ def session_table(found):
     for name, df in found.items():
         summary, _ = report.summarise(df)
         rows.append({"name": name, "start": df["timestamp"].iloc[0],
-                     "demo": is_demo(name), **summary})
+                     "sample": is_sample(name), **summary})
     return pd.DataFrame(rows).sort_values("start").reset_index(drop=True)
 
 
