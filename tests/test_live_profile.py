@@ -67,7 +67,7 @@ class LiveProfileTest(unittest.TestCase):
     def test_the_profile_safe_distance_is_used(self):
         state = Session(profiles.make("Careful", safe_distance_cm=70)).run()
         self.assertTrue(state["alert"].startswith("Too close! 6"))
-        self.assertEqual((state["alert_level"], state["safe_cm"]), ("alert", 70))
+        self.assertEqual((state["alert_level"], state["safe_cm"]), ("warn", 70))   # amber on the website
         self.assertGreater(state["strain_score"], Session().run()["strain_score"])
 
     def test_calibrating_stores_it_in_the_profile(self):

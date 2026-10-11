@@ -7,6 +7,7 @@ page uses, so the whole website looks like one product (and like our slides).
     sidebar_brand()  EyeGuard name and logo at the top of the sidebar
     hero()           the big banner on the Home page
     info_cards()     a row of cards with a number or icon, a title and a sentence
+    meter()          a bar for one number out of a maximum (strain, break timer)
     footer()         the small line at the bottom of a page
     kpi_card() / kpi_row()   a number with its unit and a status in words
     status_pill()    small coloured label, always with a word and an icon
@@ -96,6 +97,14 @@ CSS = f"""
 .eg-info .eg-title {{ font-family: {HEADING_FONT}; font-weight: 600; font-size: {TYPE['h3']}rem;
                       color: {INK}; margin: 0.15rem 0 {SPACE['xs']}rem 0; }}
 .eg-info .eg-body {{ color: {MUTED}; }}
+
+.eg-meter {{ margin-bottom: {SPACE['md']}rem; }}
+.eg-meter-top {{ display: flex; justify-content: space-between; gap: {SPACE['md']}rem;
+                 font-weight: 700; color: {INK}; margin-bottom: 0.3rem; }}
+.eg-meter-note {{ color: {MUTED}; font-weight: 600; }}
+.eg-meter-track {{ height: 16px; border-radius: 999px; background: {SURFACE};
+                   border: 1px solid {BORDER}; overflow: hidden; }}
+.eg-meter-fill {{ height: 100%; border-radius: 999px; }}
 
 .eg-footer {{ border-top: 1px solid {BORDER}; margin-top: {SPACE['xl']}rem;
               padding-top: {SPACE['md']}rem; color: {MUTED}; font-size: {TYPE['small']}rem;
@@ -211,6 +220,19 @@ def info_cards(cards):
                      f'<div class="eg-title">{_text(card["title"])}</div>'
                      f'<div class="eg-body">{_text(card["text"])}</div></div>')
     st.html('<div class="eg-row eg-row-wide">' + "".join(parts) + "</div>")
+
+
+def meter(label, value, maximum, kind="info", note=""):
+    """A horizontal bar for one number out of a maximum (the strain meter and
+    the break timer). The number and the note are written out as text too."""
+    accent = STATUS.get(kind, STATUS["info"])[4]
+    percent = max(0.0, min(100.0, 100.0 * value / maximum)) if maximum else 0.0
+    note_html = f'<span class="eg-meter-note">{_text(note)}</span>' if note else ""
+    st.html(f'<div class="eg-meter" role="meter" aria-label="{_text(label)}" aria-valuemin="0" '
+            f'aria-valuemax="{_text(maximum)}" aria-valuenow="{_text(round(value, 1))}">'
+            f'<div class="eg-meter-top"><span>{_text(label)}</span>{note_html}</div>'
+            f'<div class="eg-meter-track"><div class="eg-meter-fill" '
+            f'style="width:{percent:.1f}%;background:{accent}"></div></div></div>')
 
 
 def footer(text):

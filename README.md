@@ -116,7 +116,7 @@ It opens at http://localhost:8501.
 | Home | "Blink more. Sit back. Look away." with buttons to start a live check or open a demo session, the problem, how EyeGuard works in three steps, and the SDGs it supports. |
 | Live Check | Webcam check in the browser with the numbers, alerts and 20-20-20 break drawn on the video. Also has a single-photo mode. Uses your profile if you have set one. |
 | My Profile | What you wear (nothing, glasses or contacts), your lens power and your safe distance, with a plain explanation of what EyeGuard does with them. |
-| Session Dashboard | KPI cards, interactive charts, tips and downloads for one session. Pick a CSV from `logs/`, upload one, or generate a demo session. |
+| Session Dashboard | Number cards with units and a status in words (for example "Below normal", "One missed"), interactive charts with labelled limit lines, tips as cards with the most important first, and downloads for one session. Pick a CSV from `logs/`, upload one, or generate a demo session. |
 | Insights | All sessions together: blink rate by hour of the day, strain trend, best and worst session. |
 | About | Tech stack, formulas, future scope and the AI usage disclosure. |
 
@@ -188,7 +188,7 @@ Video is analysed frame by frame in memory and is never saved. Only the numbers 
 | `live.py` | Keeps the live session between video frames for the Live Check page and draws the overlay. |
 | `sessions.py` | Finds, loads and checks session CSVs; combines sessions for Insights. |
 | `charts.py` | Plotly charts. |
-| `ui.py` | The design system: colours, type and the shared page blocks (page header, hero banner, sidebar logo, KPI card, info cards, status pill, tip card, alert box, footer). The theme for Streamlit's own widgets is in `.streamlit/config.toml`. |
+| `ui.py` | The design system: colours, type and the shared page blocks (page header, hero banner, sidebar logo, KPI card, info cards, status pill, tip card, alert box, meter, footer). The theme for Streamlit's own widgets is in `.streamlit/config.toml`. |
 | `requirements.txt`, `packages.txt` | For Streamlit Cloud. |
 | `requirements-desktop.txt` | For your laptop. |
 

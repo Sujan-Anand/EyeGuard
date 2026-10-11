@@ -152,6 +152,105 @@ def break_periods(df):
             for _, rows in df[on].groupby(block[on])]
 
 
+# ----------------------------------------------- status words and KPI cards
+def _known(value):
+    return value is not None and value == value          # not None and not NaN
+
+
+def blink_status(rate):
+    """(words, kind) for a blink rate: the words carry the meaning, not the colour."""
+    if not _known(rate):
+        return None, "neutral"
+    if rate >= 15:
+        return "Healthy", "good"
+    if rate >= report.BLINK_WARN_RATE:
+        return "Below normal", "warn"
+    if rate >= report.BLINK_ALERT_RATE:
+        return "Low", "warn"
+    return "Very low", "alert"
+
+
+def strain_status(score):
+    if not _known(score):
+        return None, "neutral"
+    if score < 30:
+        return "Relaxed", "good"
+    return ("Moderate", "warn") if score < 50 else ("High", "alert")
+
+
+def breaks_status(completed, minutes, every=20):
+    """Compares breaks taken with the breaks that were due (one every 20 minutes)."""
+    due = int(minutes // every)
+    if due == 0:
+        return "None due yet", "neutral"
+    missed = due - completed
+    if missed <= 0:
+        return "All taken", "good"
+    if missed == 1:
+        return "One missed", "warn"
+    return f"{missed} missed", "alert"
+
+
+def kpi_cards(s):
+    """The dashboard's number cards from a report.py summary: each has a unit
+    and a status in words. A value with no data shows a dash and no status."""
+    def card(label, value, pattern, unit, status, note=None):
+        known = _known(value)
+        words, kind = status if known else (None, "neutral")
+        return dict(label=label, value=pattern.format(value) if known else "\u2013",
+                    unit=unit if known else "", status=words, kind=kind, note=note)
+
+    distance = s["avg_distance"]
+    close = s["too_close_pct"] if _known(distance) else None
+    safe = report.MIN_SAFE_DISTANCE_CM
+    return [
+        card("Duration", s["minutes"], "{:.0f}", "min", (None, "neutral")),
+        card("Average blink rate", s["avg_blink_rate"], "{:.1f}", "/ min",
+             blink_status(s["avg_blink_rate"]), "Healthy is 15-20"),
+        card("Average distance", distance, "{:.0f}", "cm",
+             ("Comfortable", "good") if _known(distance) and distance >= safe
+             else ("Too close", "alert"), f"Keep at least {safe} cm"),
+        card("Time too close", close, "{:.0f}", "%",
+             ("Rarely", "good") if _known(close) and close <= 20 else ("Often", "alert")),
+        card("Breaks completed", s["breaks"], "{:d}", "", breaks_status(s["breaks"], s["minutes"]),
+             "One is due every 20 minutes"),
+        card("Average strain score", s["avg_score"], "{:.0f}", "/ 100", strain_status(s["avg_score"])),
+        card("Peak strain score", s["peak_score"], "{:d}", "/ 100", strain_status(s["peak_score"])),
+    ]
+
+
+# Each tip from report.py: how to spot it, its card title and its icon.
+TIP_STYLES = [
+    ("Your blink rate", "Blink more", "visibility"),
+    ("You sat closer", "Sit back", "straighten"),
+    ("No 20-20-20", "Take your breaks", "self_improvement"),
+    ("Room was dark", "Turn on a light", "light_mode"),
+]
+
+
+def tip_cards(df, s, tips):
+    """The tips from report.py as icon cards, most important first. Importance
+    is how far the session was from healthy on that measure (0 to 1)."""
+    severity = {
+        "Your blink rate": min(1.0, max(0.0, (15 - s["avg_blink_rate"]) / 15))
+        if _known(s["avg_blink_rate"]) else 0.0,
+        "You sat closer": (s["too_close_pct"] or 0) / 100 if _known(s["too_close_pct"]) else 0.0,
+        "No 20-20-20": min(1.0, s["minutes"] / 60),
+        "Room was dark": float((df["brightness"] < 60).mean()),
+    }
+    cards = []
+    for tip in tips:
+        for start, title, icon in TIP_STYLES:
+            if tip.startswith(start):
+                cards.append(dict(text=tip, title=title, icon=icon, kind="warn",
+                                  importance=severity[start]))
+                break
+        else:
+            cards.append(dict(text=tip, title="Great session", icon="thumb_up", kind="good",
+                              importance=0.0))
+    return sorted(cards, key=lambda c: -c["importance"])
+
+
 # ----------------------------------------------------- across all sessions
 def session_table(found):
     """One row per session, oldest first, with the summary numbers from

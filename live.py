@@ -37,6 +37,7 @@ NORMAL_BREAK_SECONDS = 20 * 60
 # Website only.
 PAUSE_SECONDS = 3                # a gap this long means the video was stopped
 MAX_ROWS = 4 * 60 * 60           # keep at most 4 hours of per-second rows
+OVERLAY_SCALE = 1.3              # the numbers on the video, compared with the desktop app
 COLUMNS = ["timestamp", "face", "ear", "blinks_total", "blink_rate", "distance_cm",
            "looking_away", "brightness", "on_break", "strain_score", "alert"]
 
@@ -248,16 +249,18 @@ class EyeTracker:
             low_blink = eg.blink_alert(blink_rate) if elapsed > BLINK_ALERT_AFTER else None
             if low_blink:                        # "warn" below 7/min, "alert" below 5/min
                 alert, alert_level = low_blink
+            # on the website only blinking below 5/min and drowsiness are strong
+            # (red) alerts; everything else is a gentle amber warning
             if 0 < self.dist < self.safe_cm:
-                alert, alert_level = f"Too close! {self.dist:.0f} cm - move back", "alert"
+                alert, alert_level = f"Too close! {self.dist:.0f} cm - move back", "warn"
             if abs(roll) > eg.HEAD_TILT_DEG:
-                alert, alert_level = "Straighten your head / posture", "alert"
+                alert, alert_level = "Straighten your head / posture", "warn"
             if self.glare and self.glare.update(iris_px, self.ear, self.ear_threshold, now):
                 alert, alert_level = eg.GLARE_MESSAGE, "warn"
         if self.glare and not face:
             self.glare.reset()
         if brightness < eg.DARK_BRIGHTNESS:
-            alert, alert_level = "Room too dark - turn on a light", "alert"
+            alert, alert_level = "Room too dark - turn on a light", "warn"
 
         score = eg.strain_score(blink_rate, self.dist if face else 0,
                                 min(since_break, self.break_every_s) / 60,
@@ -312,32 +315,40 @@ def draw_overlay(frame, pts, state):
         for idx in eg.LEFT_EYE + eg.RIGHT_EYE:
             cv2.circle(frame, tuple(int(v) for v in pts[idx]), 1, (0, 255, 255), -1)
 
-    panel = frame.copy()
-    cv2.rectangle(panel, (0, 0), (300, 190), (30, 30, 30), -1)
-    frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
-    eg.put(frame, "EyeGuard", (10, 28), (255, 200, 0), 0.8)
-    for row, text in enumerate(state["profile_lines"]):
-        eg.put_fit(frame, text, (132, 15 + 16 * row), 163, (220, 220, 220), 0.42)
-    eg.put(frame, "Blinks/min: measuring..." if state["measuring"]
-           else f"Blinks/min: {state['blink_rate']:4.1f}",
-           (10, 60), eg.blink_color(state["blink_rate"]))
-    eg.put(frame, f"Total blinks: {state['blinks_total']}", (10, 85))
-    eg.put(frame, f"Distance: {state['distance_cm']:4.0f} cm" if face else "Distance: --",
-           (10, 110), eg.level_color(not face or state["distance_cm"] >= state["safe_cm"]))
-    eg.put(frame, f"Next break: {state['next_break_s'] / 60:4.1f} min", (10, 135))
-    eg.put(frame, f"Strain score: {score}/100", (10, 160), eg.level_color(score < 50))
-    eg.put(frame, f"EAR {state['ear']:.2f} (thr {state['ear_threshold']:.2f})",
-           (10, 182), (200, 200, 200), 0.5, 1)
-
-    bar_w = int((w - 20) * score / 100)
-    cv2.rectangle(frame, (10, h - 20), (w - 10, h - 8), (60, 60, 60), -1)
-    cv2.rectangle(frame, (10, h - 20), (10 + bar_w, h - 8), eg.level_color(score < 50), -1)
-
-    if state["on_break"]:
+    if state["on_break"]:                        # the break screen has the picture to itself
         timer = eg.BreakTimer()                  # same break screen as the desktop app
         timer.done, timer.state = state["break_done_s"], state["break_state"]
-        frame = eg.draw_break_screen(frame, timer)
-        return frame
+        return eg.draw_break_screen(frame, timer)
+
+    # The panel is drawn 30% larger than on the desktop so it stays readable
+    # when the video is shown small in a browser or on a projector.
+    k = OVERLAY_SCALE if w >= 600 else 1.0
+
+    def at(x, y):
+        return int(x * k), int(y * k)
+
+    panel = frame.copy()
+    cv2.rectangle(panel, (0, 0), at(300, 190), (30, 30, 30), -1)
+    frame = cv2.addWeighted(panel, 0.6, frame, 0.4, 0)
+    eg.put(frame, "EyeGuard", at(10, 28), (255, 200, 0), 0.8 * k)
+    for row, text in enumerate(state["profile_lines"]):
+        eg.put_fit(frame, text, at(132, 15 + 16 * row), int(163 * k), (220, 220, 220), 0.42 * k)
+    eg.put(frame, "Blinks/min: measuring..." if state["measuring"]
+           else f"Blinks/min: {state['blink_rate']:4.1f}",
+           at(10, 60), eg.blink_color(state["blink_rate"]), 0.6 * k)
+    eg.put(frame, f"Total blinks: {state['blinks_total']}", at(10, 85), scale=0.6 * k)
+    eg.put(frame, f"Distance: {state['distance_cm']:4.0f} cm" if face else "Distance: --",
+           at(10, 110), eg.level_color(not face or state["distance_cm"] >= state["safe_cm"]),
+           0.6 * k)
+    eg.put(frame, f"Next break: {state['next_break_s'] / 60:4.1f} min", at(10, 135), scale=0.6 * k)
+    eg.put(frame, f"Strain score: {score}/100", at(10, 160), eg.level_color(score < 50), 0.6 * k)
+    eg.put(frame, f"EAR {state['ear']:.2f} (thr {state['ear_threshold']:.2f})",
+           at(10, 182), (200, 200, 200), 0.5 * k, 1)
+
+    bar_w = int((w - 20) * score / 100)                      # strain meter along the bottom
+    cv2.rectangle(frame, (10, h - 22), (w - 10, h - 8), (60, 60, 60), -1)
+    cv2.rectangle(frame, (10, h - 22), (10 + bar_w, h - 8), eg.level_color(score < 50), -1)
+
     notes = [n.replace("press c", "click Calibrate distance") for n in state["notes"]]
     if notes:                                    # calibration help, on a dark strip
         strip = frame.copy()

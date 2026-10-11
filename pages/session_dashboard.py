@@ -1,6 +1,5 @@
 """Session Dashboard - KPI cards, charts and tips for one EyeGuard session."""
 
-import math
 import os
 
 import streamlit as st
@@ -11,11 +10,6 @@ from report import BLINK_ALERT_RATE, BLINK_WARN_RATE, MIN_SAFE_DISTANCE_CM
 import ui
 
 ui.page_header("Session dashboard", "One session at a glance: blinking, distance, breaks and strain.")
-
-
-def show(value, pattern):
-    """Formats a number, or shows a dash when there is no data (NaN)."""
-    return "–" if value is None or math.isnan(value) else pattern.format(value)
 
 
 # ---------------------------------------------------------- choose a session
@@ -66,42 +60,12 @@ except Exception as err:
     st.stop()
 
 # ------------------------------------------------------------------ KPI cards
-blink, close = s["avg_blink_rate"], s["too_close_pct"]
-if math.isnan(s["avg_distance"]):
-    close = float("nan")                 # no distance readings -> nothing to report
-if math.isnan(blink):
-    blink_note, blink_colour = None, "off"
-elif blink >= 15:
-    blink_note, blink_colour = "healthy", "normal"
-elif blink >= BLINK_WARN_RATE:
-    blink_note, blink_colour = "below normal", "off"
-elif blink >= BLINK_ALERT_RATE:
-    blink_note, blink_colour = "low", "inverse"
-else:
-    blink_note, blink_colour = "very low", "inverse"
-
-with st.container(horizontal=True):
-    st.metric("Duration", show(s["minutes"], "{:.0f} min"), border=True)
-    st.metric("Average blink rate", show(blink, "{:.1f} / min"), blink_note,
-              delta_color=blink_colour, delta_arrow="off", border=True,
-              help="Healthy is about 15-20 blinks per minute.")
-    st.metric("Average distance", show(s["avg_distance"], "{:.0f} cm"), border=True,
-              help=f"Keep at least {MIN_SAFE_DISTANCE_CM} cm from the screen.")
-    st.metric("Time too close", show(close, "{:.0f}%"),
-              None if math.isnan(close) else ("often" if close > 20 else "fine"),
-              delta_color="inverse" if close > 20 else "normal", delta_arrow="off",
-              border=True, help=f"Share of the session closer than {MIN_SAFE_DISTANCE_CM} cm.")
-with st.container(horizontal=True):
-    st.metric("Breaks completed", s["breaks"], border=True,
-              help="20-20-20 breaks where the camera saw you look away for 20 seconds.")
-    st.metric("Average strain score", show(s["avg_score"], "{:.0f} / 100"), border=True,
-              help="0 = relaxed eyes, 100 = heavy strain.")
-    st.metric("Peak strain score", f"{s['peak_score']} / 100", border=True)
+ui.kpi_row(sessions.kpi_cards(s))        # every card: a unit and a status in words
 
 # --------------------------------------------------------------------- charts
 st.subheader("Over time")
-st.caption("Bold line = 30-second rolling average. Grey bars = break periods. "
-           "Dashed lines = limits (amber = warning, red = alert).")
+st.caption("Bold line = 30-second average. Grey bars = breaks. Dashed lines = limits: "
+           "amber is a warning, red is an alert. Each line is labelled.")
 st.plotly_chart(
     charts.timeline(df, "blink_rate", "Blink rate", "Blinks per minute",
                     limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min", "warn"),
@@ -119,11 +83,8 @@ st.plotly_chart(
 
 # ----------------------------------------------------------------------- tips
 st.subheader("Tips for you")
-for tip in tips:
-    if tip.startswith("Great session"):
-        st.success(tip, icon=":material/thumb_up:")
-    else:
-        st.warning(tip, icon=":material/lightbulb:")
+for tip in sessions.tip_cards(df, s, tips):          # most important first
+    ui.tip_card(tip["text"], icon=tip["icon"], title=tip["title"], kind=tip["kind"])
 
 # ------------------------------------------------------------------ downloads
 st.subheader("Download")

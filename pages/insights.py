@@ -66,16 +66,20 @@ except Exception as err:
     st.stop()
 
 # ------------------------------------------------------------------ KPI cards
-with st.container(horizontal=True):
-    st.metric("Sessions", len(table), border=True)
-    st.metric("Total screen time", duration(table["minutes"].sum()), border=True)
-    st.metric("Average blink rate",
-              show(sessions.weighted_mean(table, "avg_blink_rate"), "{:.1f} / min"),
-              border=True, help="Healthy is about 15-20 blinks per minute.")
-    st.metric("Average strain score",
-              show(sessions.weighted_mean(table, "avg_score"), "{:.0f} / 100"),
-              border=True, help="0 = relaxed eyes, 100 = heavy strain.")
-    st.metric("Breaks completed", int(table["breaks"].sum()), border=True)
+avg_blink = sessions.weighted_mean(table, "avg_blink_rate")
+avg_strain = sessions.weighted_mean(table, "avg_score")
+blink_words, blink_kind = sessions.blink_status(avg_blink)
+strain_words, strain_kind = sessions.strain_status(avg_strain)
+ui.kpi_row([
+    dict(label="Sessions", value=len(table)),
+    dict(label="Total screen time", value=duration(table["minutes"].sum())),
+    dict(label="Average blink rate", value=show(avg_blink, "{:.1f}"),
+         unit="/ min" if blink_words else "", status=blink_words, kind=blink_kind,
+         note="Healthy is 15-20"),
+    dict(label="Average strain score", value=show(avg_strain, "{:.0f}"),
+         unit="/ 100" if strain_words else "", status=strain_words, kind=strain_kind),
+    dict(label="Breaks completed", value=int(table["breaks"].sum())),
+])
 
 # ---------------------------------------------------------------- time of day
 st.subheader("Time of day")
@@ -105,12 +109,11 @@ else:
     st.plotly_chart(
         charts.hourly(hours, "blink_rate", "Blink rate by hour of the day",
                       "Blinks per minute", "blinks/min",
-                      limits=[(BLINK_WARN_RATE, "", "warn"), (BLINK_ALERT_RATE, "")],
-                      band=(15, 20, "")),
+                      limits=[(BLINK_WARN_RATE, f"Warning below {BLINK_WARN_RATE}/min", "warn"),
+                              (BLINK_ALERT_RATE, f"Strong alert below {BLINK_ALERT_RATE}/min")],
+                      band=(15, 20, "Healthy 15-20/min")),
         config=charts.CONFIG, alt="Average blink rate for each hour of the day")
-    st.caption(f"Green band = healthy 15-20 blinks/min. Dashed lines = warning "
-               f"({BLINK_WARN_RATE}/min, amber) and strong alert ({BLINK_ALERT_RATE}/min, red). "
-               "Hours with under "
+    st.caption("Hours with under "
                f"{sessions.MIN_HOUR_MINUTES} minutes of data are not shown.")
 
 # --------------------------------------------------------------- strain trend

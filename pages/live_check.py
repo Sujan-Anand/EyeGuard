@@ -161,14 +161,16 @@ if mode == "Single photo":
     st.stop()
 
 # ----------------------------------------------------------------- live video
-st.subheader("How to start")
-st.markdown(
-    "1. Click **START** below and choose **Allow** when the browser asks for the camera.\n"
-    f"2. Sit at arm's length (about {eg.MIN_SAFE_DISTANCE_CM} cm) with light on your face.\n"
-    "3. Work normally for a minute. Numbers and alerts appear on the video.\n"
-    "4. When the blue break screen appears, look away from the screen for "
-    f"{eg.BREAK_LOOK_AWAY_SECONDS} seconds. Looking back pauses the timer; "
-    "looking away again continues from where it stopped.")
+st.subheader("Before you start")
+ui.info_cards([
+    dict(badge=1, title="Allow the camera",
+         text="Click START below and choose Allow when the browser asks."),
+    dict(badge=2, title="Sit at arm's length",
+         text=f"About {eg.MIN_SAFE_DISTANCE_CM} cm from the screen, with light on your face."),
+    dict(badge=3, title="Work normally",
+         text="Numbers and alerts appear on the video. On the blue break screen, look away "
+              f"for {eg.BREAK_LOOK_AWAY_SECONDS} seconds; looking back pauses the timer."),
+])
 
 
 def on_frame(frame):
@@ -258,6 +260,8 @@ def live_numbers():
                   help="0 = relaxed eyes, 100 = heavy strain.")
         st.metric("Next break", "now" if s["on_break"] else f"{s['next_break_s'] / 60:.1f} min",
                   border=True)
+    words, kind = sessions.strain_status(s["strain_score"])
+    ui.meter("Eye strain", s["strain_score"], 100, kind, f"{s['strain_score']} / 100 \u00b7 {words}")
     if not tracker.is_running():
         st.caption("Video stopped. These are the last numbers.")
     elif s["on_break"]:
@@ -316,16 +320,18 @@ if not playing and len(recorded) >= MIN_ROWS_TO_SAVE:
             st.rerun()
 
 # ------------------------------------------------------------ troubleshooting
-with st.expander("Camera not working?", icon=":material/help:"):
+with st.expander("Camera not working?", icon=":material/help:", expanded=not playing):
+    ui.alert_box(
+        "Work down this list. Most camera problems are fixed by the first two.",
+        kind="info", title="If the video does not start")
     st.markdown(
-        "**No camera prompt, or you clicked Block**\n"
-        "- Click the lock or camera icon in the address bar, set Camera to "
-        "**Allow**, then reload the page.\n"
-        "- The page must be opened with `https://` (or `localhost`). Browsers "
-        "refuse the camera on plain `http://` sites.\n"
-        "- Close other apps that are using the camera (Zoom, Teams, the EyeGuard "
-        "desktop app).\n\n"
-        "**START keeps spinning and no video appears**\n"
-        "- Some networks block live video. Try a phone hotspot or another Wi-Fi.\n"
-        "- Switch to **Single photo** at the top of this page. It works on any network.\n\n"
-        "**Still stuck?** Run the desktop app instead: `py eyeguard.py --demo`")
+        "1. **Allow the camera in the address bar.** Click the lock or camera icon next "
+        "to the web address, set Camera to **Allow**, then reload the page.\n"
+        "2. **Check Windows camera privacy.** Open Settings, then Privacy & security, "
+        "then Camera, and switch on camera access for your browser.\n"
+        "3. **Close the desktop app** and anything else using the camera (Zoom, Teams). "
+        "Only one program can use it at a time.\n"
+        "4. **Try a phone hotspot.** Some campus and office networks block live video, "
+        "so START keeps spinning. **Single photo** at the top of this page also works "
+        "on any network.\n"
+        "5. **Or run the desktop app instead:** `py eyeguard.py --demo`")

@@ -24,43 +24,57 @@ CONFIG = {"displayModeBar": False}       # hide the plotly toolbar (cleaner on a
 
 def style(fig, title, x_title, y_title, height=360):
     fig.update_layout(
-        title=dict(text=title, font=dict(size=19, color=INK), x=0, xanchor="left"),
-        height=height, margin=dict(l=10, r=20, t=70, b=10),
+        title=dict(text=title, font=dict(size=21, color=INK), x=0, xanchor="left"),
+        height=height, margin=dict(l=10, r=24, t=76, b=10),
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",     # the page shows through
-        font=dict(color=INK, size=14),
+        font=dict(color=INK, size=15),               # large enough for a projector
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1,
-                    font=dict(color=INK)),
+                    font=dict(color=INK, size=14)),
         hoverlabel=dict(font_size=14, bgcolor=ui.SURFACE, bordercolor=ui.BORDER,
                         font_color=INK),
     )
     fig.update_xaxes(title_text=x_title, showgrid=False, zeroline=False,
-                     linecolor=AXIS, tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
+                     linecolor=AXIS, tickfont=dict(color=MUTED, size=14),
+                     title_font=dict(color=MUTED, size=15))
     fig.update_yaxes(title_text=y_title, gridcolor=GRID, zeroline=False,
-                     linecolor=AXIS, tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
+                     linecolor=AXIS, tickfont=dict(color=MUTED, size=14),
+                     title_font=dict(color=MUTED, size=15))
     return fig
 
 
-def add_limits(fig, limits=(), band=None):
+def add_limits(fig, limits=(), band=None, in_legend=False):
     """Dashed limit lines and an optional green healthy band.
     limits is a list of (value, text) for a red alert line, or
     (value, text, "warn") for an amber warning line; band is (low, high, text).
-    Use "" as the text to draw the line or band without a label."""
+    in_legend=True names them in the legend instead of on the plot (for bar
+    charts, where a label on the plot would sit on top of the bars)."""
     def label(text, position, colour):
         # plotly writes "new text" if it gets a label position without a text
-        if not text:
+        if not text or in_legend:
             return {}
         return dict(annotation_text=text, annotation_position=position,
-                    annotation_font=dict(color=colour, size=12))
+                    annotation_font=dict(color=colour, size=13),
+                    annotation_bgcolor="rgba(11,31,33,0.8)")     # readable over the data
+
+    def legend_entry(text, colour, dash=None):
+        if in_legend and text:
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None], name=text, hoverinfo="skip",
+                mode="lines" if dash else "markers",
+                line=dict(color=colour, width=2, dash=dash),
+                marker=dict(color=colour, size=13, symbol="square", opacity=0.5)))
 
     if band:
         low, high, text = band
         fig.add_hrect(y0=low, y1=high, fillcolor=HEALTHY, opacity=0.16, line_width=0,
                       layer="below", **label(text, "top left", HEALTHY))
+        legend_entry(text, HEALTHY)
     for value, text, *level in limits:
         colour = WARNING if level == ["warn"] else ALERT
         fig.add_hline(y=value, line=dict(color=colour, width=2, dash="dash"),
                       **label(text, "bottom right", colour))
+        legend_entry(text, colour, "dash")
 
 
 def label_point(fig, x, y, text):
@@ -77,20 +91,21 @@ def hour_label(hour):
 def hourly(hours, column, title, y_title, unit, limits=(), band=None):
     """One bar per hour of the day (0-23) for one measure, from
     sessions.by_hour(). The lowest hour is labelled. Pass limits and band
-    with "" as their text: labels inside the plot would sit on top of bars."""
+    the same way as for timeline(); they are named in the legend."""
     fig = go.Figure(go.Bar(
         x=hours["hour"], y=hours[column], width=0.7,
         marker=dict(color=SERIES, cornerradius=4),
         customdata=list(zip(hours["hour"].map(hour_label), hours["minutes"])),
+        showlegend=False,
         hovertemplate="<b>%{customdata[0]}</b><br>%{y:.1f} " + unit
                       + "<br>from %{customdata[1]:.0f} min of data<extra></extra>"))
-    add_limits(fig, limits, band)
+    add_limits(fig, limits, band, in_legend=True)
     if len(hours) > 1:
         lowest = hours.loc[hours[column].idxmin()]
         label_point(fig, lowest["hour"], lowest[column], "lowest")
 
-    style(fig, title, "Hour of the day", y_title)
-    fig.update_layout(showlegend=False)
+    style(fig, title, "Hour of the day", y_title, height=390)
+    fig.update_layout(legend=dict(xanchor="left", x=0, y=1.02))
     fig.update_xaxes(range=[-0.5, 23.5], tickvals=list(range(0, 24, 3)),
                      ticktext=[hour_label(h) for h in range(0, 24, 3)])
     fig.update_yaxes(range=[0, max(25, hours[column].max() * 1.2)])
@@ -104,8 +119,8 @@ def trend(table, column, title, y_title, limits=(), y_range=None):
     when = [f"{start:%d %b %Y, %H:%M}" for start in table["start"]]
     fig = go.Figure(go.Scatter(
         x=number, y=table[column], mode="lines+markers",
-        line=dict(color=SERIES, width=2),
-        marker=dict(size=10, color=SERIES, line=dict(color=ui.BACKGROUND, width=2)),
+        line=dict(color=SERIES, width=3),
+        marker=dict(size=11, color=SERIES, line=dict(color=ui.BACKGROUND, width=2)),
         customdata=when,
         hovertemplate="<b>%{customdata}</b><br>%{y:.0f}<extra></extra>"))
     add_limits(fig, limits)
@@ -140,7 +155,7 @@ def timeline(df, column, title, y_title, limits=(), band=None, y_range=None, fil
         line=dict(color=SERIES_LIGHT, width=1), hovertemplate="%{y:.1f}"))
     fig.add_trace(go.Scatter(
         x=t, y=smooth, name="30-s average", mode="lines",
-        line=dict(color=SERIES, width=2), hovertemplate="%{y:.1f}",
+        line=dict(color=SERIES, width=3), hovertemplate="%{y:.1f}",
         fill="tozeroy" if fill else None, fillcolor="rgba(79,179,169,0.18)"))
 
     add_limits(fig, limits, band)
@@ -148,7 +163,7 @@ def timeline(df, column, title, y_title, limits=(), band=None, y_range=None, fil
         fig.add_vrect(x0=start, x1=max(end, start + 0.05), fillcolor=BREAK, opacity=0.22,
                       line_width=0, layer="below", annotation_text="break",
                       annotation_position="top left",
-                      annotation_font=dict(color=MUTED, size=11))
+                      annotation_font=dict(color=MUTED, size=13))
 
     style(fig, title, "Minutes into session", y_title)
     fig.update_layout(hovermode="x unified")
